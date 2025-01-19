@@ -175,7 +175,7 @@ class MAC(Optimizer):
                     else:
                         # No bias
                         layer.weight.grad.copy_(v.view_as(layer.weight))
-                elif isinstance(layer, (nn.Linear, nn.Conv2d):
+                elif isinstance(layer, (nn.Linear, nn.Conv2d)):
                     if layer.bias is not None:
                         v = [v[:, :-1], v[:, -1:]]
                         layer.weight.grad.data.copy_(v[0].view_as(layer.weight))
