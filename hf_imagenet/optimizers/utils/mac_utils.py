@@ -66,14 +66,16 @@ def reshape_grad(layer):
             # => (out_features, in_features+1)
             grad_mat = torch.cat([grad_mat, layer.bias.grad.view(-1, 1)], dim=1)
 
+
     elif classname == 'LayerNorm':
-        # Weight and bias are each (hidden_size,)
-        # Reshape both to (1, hidden_size).
-        grad_mat = g.view(1, -1)  # => (1, hidden_size)
-        if hasattr(layer, 'bias') and layer.bias is not None:
-            bias_grad = layer.bias.grad.view(1, -1)  # => (1, hidden_size)
-            grad_mat = torch.cat([grad_mat, bias_grad], dim=1)
-            # => (1, 2 * hidden_size)
+        # LN weight & bias each have shape = (hidden_size,)
+        # shape them into (1, hidden_size) each.
+        W = layer.weight.grad.view(1, -1)
+        if layer.bias is not None:
+            B = layer.bias.grad.view(1, -1)
+            grad_mat = torch.cat([W, B], dim=1)  # => shape (1, hidden_size*2)
+        else:
+            grad_mat = W
 
     else:
         raise NotImplementedError(f"reshape_grad not implemented for {classname}.")
