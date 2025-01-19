@@ -9,25 +9,34 @@ class MAC(Optimizer):
     def __init__(
         self,
         params,
-        lr=0.05,
+        lr=0.1,
         momentum=0.9,
-        damping=0.5,
-        weight_decay=0.00001,
-        Tinv=5,
+        stat_decay=0.95,
+        damping=1.0,
+        weight_decay=0.0001,
+        Tcov=5,
+        Tinv=50,
     ):
         if lr < 0.0:
             raise ValueError(f"Invalid learning rate: {lr}")
+        if stat_decay < 0.0:
+            raise ValueError(f'Invalid stat_decay value: {stat_decay}')
         if weight_decay < 0.0:
             raise ValueError(f"Invalid weight_decay value: {weight_decay}")
 
         defaults = dict(lr=lr, 
                         momentum=momentum,
-                        weight_decay=weight_decay)
+                        stat_decay=stat_decay,
+                        damping=damping,
+                        weight_decay=weight_decay,)
         super().__init__(params, defaults)
 
         self._model = None
-        self._step = 0
+        self.stat_decay = stat_decay
         self.damping = damping
+        self._step = 0
+        self.ema_step = 0
+        self.Tcov = Tcov
         self.Tinv = Tinv
 
     @property
@@ -88,7 +97,7 @@ class MAC(Optimizer):
         if not module.training or not torch.is_grad_enabled():
             return
 
-        if self._step % self.Tinv != 0:
+        if self._step % self.Tcov != 0:
             return
 
         actv = forward_input[0].data
@@ -98,6 +107,8 @@ class MAC(Optimizer):
         elif isinstance(module, nn.Linear):
             if actv.ndim > 2:  # linear layers in transformers
                 actv = actv.view(-1, actv.size(-1))
+        elif isinstance(module, nn.LayerNorm):
+            actv = actv.view(-1, actv.size(-1))
 
         if module.bias is not None:
             ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)
@@ -107,9 +118,9 @@ class MAC(Optimizer):
 
         state = self.state[module]
         if 'exp_avg' not in state:
-            state['exp_avg'] = None
+            state['exp_avg'] = torch.zeros_like(avg_actv)
 
-        state['exp_avg'] = avg_actv
+        state['exp_avg'].mul_(self.stat_decay).add_(avg_actv, alpha=1.0 - self.stat_decay)
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -119,10 +130,16 @@ class MAC(Optimizer):
                 loss = closure()
 
         damping = self.damping
-        b_updated = (self._step % self.Tinv == 0)
+        b_updated = False
+
+        if self._step % self.Tinv == 0:
+            self.ema_step += 1
+            b_updated = True
+
+        bias_correction = 1.0 - (self.stat_decay ** self.ema_step)
 
         for layer in self.layer_map:
-            if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
+            if isinstance(layer, (nn.Linear, nn.Conv2d, nn.LayerNorm)) and layer.weight.grad is not None:
                 state = self.state[layer]
                 grad_mat = reshape_grad(layer)
 
@@ -130,7 +147,7 @@ class MAC(Optimizer):
                     A_inv = self.input_cov_inv
                 else:
                     if b_updated:
-                        exp_avg = state['exp_avg']
+                        exp_avg = state['exp_avg'].div(bias_correction)
                         sq_norm = torch.linalg.norm(exp_avg).pow(2)
 
                         if 'A_inv' not in state:
@@ -152,7 +169,7 @@ class MAC(Optimizer):
                 else:
                     layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
 
-        nag_step(self)
+        momentum_step(self)
         self._step += 1
         
         return loss

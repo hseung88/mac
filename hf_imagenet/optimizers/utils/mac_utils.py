@@ -53,8 +53,10 @@ def reshape_grad(layer):
 
     if classname == 'Conv2d':
         grad_mat = g.view(g.size(0), -1)  # n_filters * (in_c * kw * kh)
-    else:
+    elif classname == 'Linear':
         grad_mat = g
+    elif classname == 'LayerNorm':
+        grad_mat = g.view(1, -1)
 
     # include the bias into the weight
     if hasattr(layer, 'bias') and layer.bias is not None:
