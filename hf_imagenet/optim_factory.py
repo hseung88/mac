@@ -356,7 +356,7 @@ def create_optimizer_v2(
         opt_args.pop('eps', None)
         optimizer = optim.SGD(parameters, momentum=momentum, nesterov=True, **opt_args)
     elif opt_lower == 'mac':
-        optimizer = MAC(parameters, momentum=momentum, damping=1.0, Tinv=50, **opt_args)
+        optimizer = MAC(parameters, momentum=momentum, damping=5.0, **opt_args)
     elif opt_lower == 'smac':
         optimizer = SMAC(parameters, **opt_args) 
     elif opt_lower == 'nysact':

@@ -179,12 +179,12 @@ group.add_argument('--clip-mode', type=str, default='norm',
                    help='Gradient clipping mode. One of ("norm", "value", "agc")')
 group.add_argument('--layer-decay', type=float, default=None,
                    help='layer-wise learning rate decay (default: None)')
-group.add_argument('--damping', default=1.0, type=float, metavar='DAMPING',
-                   help='KFAC variants Damping (default: None, use opt default)')
+#group.add_argument('--damping', default=1.0, type=float, metavar='DAMPING',
+#                   help='KFAC variants Damping (default: None, use opt default)')
 #group.add_argument('--update', default=50, type=int, metavar='UPDATE FREQ',
 #                   help='MAC/SMAC Update Frequency (default: None, use opt default)')
-group.add_argument('--tinv', default=50, type=int, metavar='TINV',
-                   help='KFAC variants Update Frequency (default: None, use opt default)')
+#group.add_argument('--tinv', default=50, type=int, metavar='TINV',
+#                   help='KFAC variants Update Frequency (default: None, use opt default)')
 group.add_argument('--rank_size', default=10, type=int, metavar='SKETCH SIZE',
                    help='NysAct sketch size (default: None, use opt default)')
 group.add_argument('--opt-kwargs', nargs='*', default={}, action=utils.ParseKwargs)
