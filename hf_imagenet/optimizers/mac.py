@@ -195,8 +195,8 @@ class MAC(Optimizer):
                     layer.bias.data.addcdiv_(exp_avg_b, denom_b, value=-step_size)
 
                     # Weight decay for LN bias (often we do NOT apply WD to LN bias, but is optional)
-                    if weight_decay != 0.0:
-                        layer.bias.data.mul_(1 - lr * weight_decay)
+                    #if weight_decay != 0.0:
+                    #    layer.bias.data.mul_(1 - lr * weight_decay)
 
             elif isinstance(layer, (nn.Linear, nn.Conv2d)):
                 state = self.state[layer]
