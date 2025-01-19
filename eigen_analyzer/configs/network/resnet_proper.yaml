@@ -1,0 +1,11 @@
+size: ${network.params.depth}
+name: ResNet-${network.params.depth}
+module:
+  _target_: networks.resnet_proper.ResNet
+params:
+  num_classes: ${dataset.num_classes}
+  depth: 20   # 32, 44, 56, 110, 1202
+  which_conv: 'conv2d'
+  which_norm: 'BN'
+  groups: 16
+  affine: True

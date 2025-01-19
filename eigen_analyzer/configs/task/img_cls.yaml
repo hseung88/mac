@@ -1,0 +1,6 @@
+name: IMG_CLS
+module:
+  _target_: tasks.image_classification.ImageClassification
+loss_func:
+  _target_: torch.nn.CrossEntropyLoss
+report_lip_consts: True

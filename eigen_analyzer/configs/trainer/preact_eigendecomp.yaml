@@ -1,0 +1,11 @@
+defaults:
+  - default.yaml
+
+module:
+  _target_: training.preact_decomp.EigenAnalyzer
+
+create_working_dir: False
+pretrained_model_dir: 'outputs/cifar10_IMG_CLS_LeNet5_sgd/2024-04-26-08-52-30'
+pretrained_model_file: 'checkpoint_E0S0.pt'
+target_layers: Null  # set to 'Null' to process all layers
+num_eigen_pairs: 3000

@@ -1,0 +1,8 @@
+dname: fmnist
+data_dir: ../../Experiment/Dataset/pytorch_data
+module:
+  _target_: datasets.FashionMNISTDataModule
+in_channels: 1
+image_size: 28
+image_shape: [28, 28, 1]
+num_classes: 10

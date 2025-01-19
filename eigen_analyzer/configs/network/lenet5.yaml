@@ -1,0 +1,10 @@
+size: 5
+name: LeNet5
+module:
+  _target_: networks.lenet.LeNet5
+params:
+  in_channels: ${dataset.in_channels}
+  num_classes: ${dataset.num_classes}
+  image_size: ${dataset.image_size}
+  act_fn: relu
+  pool_fn: max

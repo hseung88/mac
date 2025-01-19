@@ -1,0 +1,7 @@
+size: 18
+name: ResNet${network.size}
+module:
+  _target_: networks.resnet.ResNet${network.size}
+params:
+  num_classes: ${dataset.num_classes}
+  width: 4

@@ -1,0 +1,8 @@
+dname: cifar10
+data_dir: ../../Experiment/Dataset/pytorch_data
+module:
+  _target_: datasets.CIFAR10DataModule
+in_channels: 3
+image_size: 32
+image_shape: [32, 32, 3]
+num_classes: 10

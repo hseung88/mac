@@ -1,0 +1,8 @@
+module:
+  _target_: training.trainer.Trainer
+
+save_init: True
+save_best: False
+save_last: False
+save_every_n_epoch: 5
+create_working_dir: True  # certain trainers don't need to create a working directory

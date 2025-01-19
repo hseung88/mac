@@ -1,0 +1,43 @@
+defaults:
+  - dataset: cifar10
+  - task: img_cls    
+  - network: resnet_proper
+  - optimizer: sgd
+  - lr_scheduler: cosine
+  -  _self_    
+  - trainer: default
+  - experiment: Null
+  - override hydra/job_logging: disabled
+  - override hydra/hydra_logging: disabled
+
+# experiement
+save: False
+debug: False
+verbose: False
+wdir_postfix: Null
+exp_name: Null
+deterministic: False
+seed: 1234
+gpu_id: -1
+data:
+  train_batch_size: 256
+  test_batch_size: 100
+  num_workers: 8
+  pin_memory: True
+  augment: False
+  drop_last: True
+  aug_mult: 0
+
+# training
+epochs: 5
+load_from_checkpoint: False
+checkpoint_path: Null
+
+hydra:
+  run:
+    dir: .
+  sweep:
+    dir: multirun
+    subdir: .
+  output_subdir: null
+

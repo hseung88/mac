@@ -1,0 +1,8 @@
+dname: tiny_imagenet
+data_dir: ../../Experiment/Dataset/pytorch_data
+module:
+  _target_: datasets.TinyImageNetDataModule
+in_channels: 3
+image_size: 64
+image_shape: [64, 64, 3]
+num_classes: 200

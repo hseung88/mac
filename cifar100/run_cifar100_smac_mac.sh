@@ -1,0 +1,29 @@
+#!/bin/bash
+
+python main.py --model resnet110 --optim smac --lr 0.1 --momentum 0.9 --stat_decay 0.95 --weight_decay 0.0005 --damping 1.0 --tcov 5 --tinv 50 --epoch 50 --batchsize 128 --run 4;
+python main.py --model resnet110 --optim smac --lr 0.1 --momentum 0.9 --stat_decay 0.95 --weight_decay 0.0005 --damping 1.0 --tcov 5 --tinv 50 --epoch 100 --batchsize 128 --run 4;
+python main.py --model resnet110 --optim smac --lr 0.1 --momentum 0.9 --stat_decay 0.95 --weight_decay 0.0005 --damping 1.0 --tcov 5 --tinv 50 --epoch 200 --batchsize 128 --run 4;
+python main.py --model resnet110 --optim mac --lr 0.1 --momentum 0.9 --stat_decay 0.95 --weight_decay 0.0005 --damping 1.0 --tcov 5 --tinv 50 --epoch 50 --batchsize 128 --run 4;
+python main.py --model resnet110 --optim mac --lr 0.1 --momentum 0.9 --stat_decay 0.95 --weight_decay 0.0005 --damping 1.0 --tcov 5 --tinv 50 --epoch 100 --batchsize 128 --run 4;
+python main.py --model resnet110 --optim mac --lr 0.1 --momentum 0.9 --stat_decay 0.95 --weight_decay 0.0005 --damping 1.0 --tcov 5 --tinv 50 --epoch 200 --batchsize 128 --run 4;
+python main.py --model densenet --optim smac --lr 0.1 --momentum 0.9 --stat_decay 0.95 --weight_decay 0.0005 --damping 1.0 --tcov 5 --tinv 50 --epoch 50 --batchsize 128 --run 4;
+python main.py --model densenet --optim smac --lr 0.1 --momentum 0.9 --stat_decay 0.95 --weight_decay 0.0005 --damping 1.0 --tcov 5 --tinv 50 --epoch 100 --batchsize 128 --run 4;
+python main.py --model densenet --optim smac --lr 0.1 --momentum 0.9 --stat_decay 0.95 --weight_decay 0.0005 --damping 1.0 --tcov 5 --tinv 50 --epoch 200 --batchsize 128 --run 4;
+python main.py --model densenet --optim mac --lr 0.1 --momentum 0.9 --stat_decay 0.95 --weight_decay 0.0005 --damping 1.0 --tcov 5 --tinv 50 --epoch 50 --batchsize 128 --run 3;
+python main.py --model densenet --optim mac --lr 0.1 --momentum 0.9 --stat_decay 0.95 --weight_decay 0.0005 --damping 1.0 --tcov 5 --tinv 50 --epoch 100 --batchsize 128 --run 3;
+python main.py --model densenet --optim mac --lr 0.1 --momentum 0.9 --stat_decay 0.95 --weight_decay 0.0005 --damping 1.0 --tcov 5 --tinv 50 --epoch 200 --batchsize 128 --run 3;
+python main.py --model densenet --optim mac --lr 0.1 --momentum 0.9 --stat_decay 0.95 --weight_decay 0.0005 --damping 1.0 --tcov 5 --tinv 50 --epoch 50 --batchsize 128 --run 4;
+python main.py --model densenet --optim mac --lr 0.1 --momentum 0.9 --stat_decay 0.95 --weight_decay 0.0005 --damping 1.0 --tcov 5 --tinv 50 --epoch 100 --batchsize 128 --run 4;
+python main.py --model densenet --optim mac --lr 0.1 --momentum 0.9 --stat_decay 0.95 --weight_decay 0.0005 --damping 1.0 --tcov 5 --tinv 50 --epoch 200 --batchsize 128 --run 4;
+python main.py --model wrn --optim smac --lr 0.1 --momentum 0.9 --stat_decay 0.95 --weight_decay 0.0005 --damping 1.0 --tcov 5 --tinv 50 --epoch 50 --batchsize 128 --run 3;
+python main.py --model wrn --optim smac --lr 0.1 --momentum 0.9 --stat_decay 0.95 --weight_decay 0.0005 --damping 1.0 --tcov 5 --tinv 50 --epoch 100 --batchsize 128 --run 3;
+python main.py --model wrn --optim smac --lr 0.1 --momentum 0.9 --stat_decay 0.95 --weight_decay 0.0005 --damping 1.0 --tcov 5 --tinv 50 --epoch 200 --batchsize 128 --run 3;
+python main.py --model wrn --optim mac --lr 0.1 --momentum 0.9 --stat_decay 0.95 --weight_decay 0.0005 --damping 1.0 --tcov 5 --tinv 50 --epoch 50 --batchsize 128 --run 3;
+python main.py --model wrn --optim mac --lr 0.1 --momentum 0.9 --stat_decay 0.95 --weight_decay 0.0005 --damping 1.0 --tcov 5 --tinv 50 --epoch 100 --batchsize 128 --run 3;
+python main.py --model wrn --optim mac --lr 0.1 --momentum 0.9 --stat_decay 0.95 --weight_decay 0.0005 --damping 1.0 --tcov 5 --tinv 50 --epoch 200 --batchsize 128 --run 3;
+python main.py --model wrn --optim smac --lr 0.1 --momentum 0.9 --stat_decay 0.95 --weight_decay 0.0005 --damping 1.0 --tcov 5 --tinv 50 --epoch 50 --batchsize 128 --run 4;
+python main.py --model wrn --optim smac --lr 0.1 --momentum 0.9 --stat_decay 0.95 --weight_decay 0.0005 --damping 1.0 --tcov 5 --tinv 50 --epoch 100 --batchsize 128 --run 4;
+python main.py --model wrn --optim smac --lr 0.1 --momentum 0.9 --stat_decay 0.95 --weight_decay 0.0005 --damping 1.0 --tcov 5 --tinv 50 --epoch 200 --batchsize 128 --run 4;
+python main.py --model wrn --optim mac --lr 0.1 --momentum 0.9 --stat_decay 0.95 --weight_decay 0.0005 --damping 1.0 --tcov 5 --tinv 50 --epoch 50 --batchsize 128 --run 4;
+python main.py --model wrn --optim mac --lr 0.1 --momentum 0.9 --stat_decay 0.95 --weight_decay 0.0005 --damping 1.0 --tcov 5 --tinv 50 --epoch 100 --batchsize 128 --run 4;
+python main.py --model wrn --optim mac --lr 0.1 --momentum 0.9 --stat_decay 0.95 --weight_decay 0.0005 --damping 1.0 --tcov 5 --tinv 50 --epoch 200 --batchsize 128 --run 4;
