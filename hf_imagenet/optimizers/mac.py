@@ -132,6 +132,9 @@ class MAC(Optimizer):
             with torch.enable_grad():
                 loss = closure()
 
+        group = self.param_groups[0]
+        lr = group['lr']
+        weight_decay = group['weight_decay']
         damping = self.damping
         b_updated = False
 
@@ -141,8 +144,61 @@ class MAC(Optimizer):
 
         bias_correction = 1.0 - (self.stat_decay ** self.ema_step)
 
+        # AdamW hyperparams for LN
+        beta1, beta2 = 0.9, 0.999
+        eps = 1e-8
+
         for layer in self.layer_map:
-            if isinstance(layer, (nn.Linear, nn.Conv2d, nn.LayerNorm)) and layer.weight.grad is not None:
+            if not hasattr(layer, 'weight') or layer.weight.grad is None:
+                continue
+
+            if isinstance(layer, nn.LayerNorm):
+                # typical AdamW states: exp_avg, exp_avg_sq for weight & bias
+                ln_state = self.state[layer]
+
+                # --- Weight AdamW ---
+                w_grad = layer.weight.grad
+                if 'exp_avg_w' not in ln_state:
+                    ln_state['exp_avg_w'] = torch.zeros_like(layer.weight)
+                    ln_state['exp_avg_sq_w'] = torch.zeros_like(layer.weight)
+
+                exp_avg_w = ln_state['exp_avg_w']
+                exp_avg_sq_w = ln_state['exp_avg_sq_w']
+
+                # Exponential moving averages of gradient values
+                exp_avg_w.mul_(beta1).add_(w_grad, alpha=1 - beta1)
+                exp_avg_sq_w.mul_(beta2).addcmul_(w_grad, w_grad, value=1 - beta2)
+
+                denom_w = exp_avg_sq_w.sqrt().add_(eps)
+                step_size = lr
+                # Param update
+                layer.weight.data.addcdiv_(exp_avg_w, denom_w, value=-step_size)
+
+                # Weight decay for LN weight
+                if weight_decay != 0.0:
+                    layer.weight.data.mul_(1 - lr * weight_decay)
+
+                # --- Bias AdamW (if present) ---
+                if layer.bias is not None and layer.bias.grad is not None:
+                    b_grad = layer.bias.grad
+                    if 'exp_avg_b' not in ln_state:
+                        ln_state['exp_avg_b'] = torch.zeros_like(layer.bias)
+                        ln_state['exp_avg_sq_b'] = torch.zeros_like(layer.bias)
+
+                    exp_avg_b = ln_state['exp_avg_b']
+                    exp_avg_sq_b = ln_state['exp_avg_sq_b']
+
+                    exp_avg_b.mul_(beta1).add_(b_grad, alpha=1 - beta1)
+                    exp_avg_sq_b.mul_(beta2).addcmul_(b_grad, b_grad, value=1 - beta2)
+
+                    denom_b = exp_avg_sq_b.sqrt().add_(eps)
+                    layer.bias.data.addcdiv_(exp_avg_b, denom_b, value=-step_size)
+
+                    # Weight decay for LN bias (often we do NOT apply WD to LN bias, but is optional)
+                    if weight_decay != 0.0:
+                        layer.bias.data.mul_(1 - lr * weight_decay)
+
+            elif isinstance(layer, (nn.Linear, nn.Conv2d)):
                 state = self.state[layer]
                 grad_mat = reshape_grad(layer)
 
@@ -165,26 +221,12 @@ class MAC(Optimizer):
 
                 v = grad_mat @ A_inv
 
-                if isinstance(layer, nn.LayerNorm):
-                    if layer.bias is not None:
-                        hidden_size = layer.weight.numel()
-                        # First half => weight, second half => bias
-                        v_weight = v[:, :hidden_size]  # => (1, hidden_size)
-                        v_bias = v[:, hidden_size:]  # => (1, hidden_size)
-
-                        # Copy back
-                        layer.weight.grad.copy_(v_weight.view_as(layer.weight))  # => (hidden_size,)
-                        layer.bias.grad.copy_(v_bias.view_as(layer.bias))  # => (hidden_size,)
-                    else:
-                        # No bias
-                        layer.weight.grad.copy_(v.view_as(layer.weight))
-                elif isinstance(layer, (nn.Linear, nn.Conv2d)):
-                    if layer.bias is not None:
-                        v = [v[:, :-1], v[:, -1:]]
-                        layer.weight.grad.data.copy_(v[0].view_as(layer.weight))
-                        layer.bias.grad.data.copy_(v[1].view_as(layer.bias))
-                    else:
-                        layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
+                if layer.bias is not None:
+                    v = [v[:, :-1], v[:, -1:]]
+                    layer.weight.grad.data.copy_(v[0].view_as(layer.weight))
+                    layer.bias.grad.data.copy_(v[1].view_as(layer.bias))
+                else:
+                    layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
 
         momentum_step(self)
         self._step += 1
