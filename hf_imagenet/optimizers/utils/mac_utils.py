@@ -45,40 +45,20 @@ def extract_patches(x, kernel_size, stride, padding, depthwise=False):
 
 def reshape_grad(layer):
     """
-    Returns the gradient reshaped for KFAC-like usage.
-    For LayerNorm: produce shape (1, hidden_size * 2) if bias exists.
+    returns the gradient reshaped for KFAC, shape=[batch_size, output_dim, input_dim]
     """
     classname = layer.__class__.__name__
-    g = layer.weight.grad  # Weight gradient must exist if we are here
+
+    g = layer.weight.grad
 
     if classname == 'Conv2d':
-        # Flatten out spatial/in-channels for conv filters
-        grad_mat = g.view(g.size(0), -1)  # => (n_filters, in_c * kw * kh)
-
-        if hasattr(layer, 'bias') and layer.bias is not None:
-            # For conv: append bias => shape (n_filters, (in_c * kw * kh) + 1)
-            grad_mat = torch.cat([grad_mat, layer.bias.grad.view(-1, 1)], dim=1)
-
-    elif classname == 'Linear':
-        # For linear, typically shape => (out_features, in_features)
-        grad_mat = g
-        if hasattr(layer, 'bias') and layer.bias is not None:
-            # => (out_features, in_features+1)
-            grad_mat = torch.cat([grad_mat, layer.bias.grad.view(-1, 1)], dim=1)
-
-
-    elif classname == 'LayerNorm':
-        # LN weight & bias each have shape = (hidden_size,)
-        # shape them into (1, hidden_size) each.
-        W = layer.weight.grad.view(1, -1)
-        if layer.bias is not None:
-            B = layer.bias.grad.view(1, -1)
-            grad_mat = torch.cat([W, B], dim=1)  # => shape (1, hidden_size*2)
-        else:
-            grad_mat = W
-
+        grad_mat = g.view(g.size(0), -1)  # n_filters * (in_c * kw * kh)
     else:
-        raise NotImplementedError(f"reshape_grad not implemented for {classname}.")
+        grad_mat = g
+
+    # include the bias into the weight
+    if hasattr(layer, 'bias') and layer.bias is not None:
+        grad_mat = torch.cat([grad_mat, layer.bias.grad.view(-1, 1)], 1)
 
     return grad_mat
 
@@ -137,7 +117,7 @@ def grad_layers(module, memo=None, prefix=''):
                     
 
 def build_layer_map(model, fwd_hook_fn=None, bwd_hook_fn=None,
-                    supported_layers=(nn.Linear, nn.Conv2d, nn.LayerNorm)):
+                    supported_layers=(nn.Linear, nn.Conv2d)):
     layer_map = {}
 
     for layer, prefix, params in grad_layers(model):
