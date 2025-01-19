@@ -45,22 +45,38 @@ def extract_patches(x, kernel_size, stride, padding, depthwise=False):
 
 def reshape_grad(layer):
     """
-    returns the gradient reshaped for KFAC, shape=[batch_size, output_dim, input_dim]
+    Returns the gradient reshaped for KFAC-like usage.
+    For LayerNorm: produce shape (1, hidden_size * 2) if bias exists.
     """
     classname = layer.__class__.__name__
-
-    g = layer.weight.grad
+    g = layer.weight.grad  # Weight gradient must exist if we are here
 
     if classname == 'Conv2d':
-        grad_mat = g.view(g.size(0), -1)  # n_filters * (in_c * kw * kh)
-    elif classname == 'Linear':
-        grad_mat = g
-    elif classname == 'LayerNorm':
-        grad_mat = g.view(1, -1)
+        # Flatten out spatial/in-channels for conv filters
+        grad_mat = g.view(g.size(0), -1)  # => (n_filters, in_c * kw * kh)
 
-    # include the bias into the weight
-    if hasattr(layer, 'bias') and layer.bias is not None:
-        grad_mat = torch.cat([grad_mat, layer.bias.grad.view(-1, 1)], 1)
+        if hasattr(layer, 'bias') and layer.bias is not None:
+            # For conv: append bias => shape (n_filters, (in_c * kw * kh) + 1)
+            grad_mat = torch.cat([grad_mat, layer.bias.grad.view(-1, 1)], dim=1)
+
+    elif classname == 'Linear':
+        # For linear, typically shape => (out_features, in_features)
+        grad_mat = g
+        if hasattr(layer, 'bias') and layer.bias is not None:
+            # => (out_features, in_features+1)
+            grad_mat = torch.cat([grad_mat, layer.bias.grad.view(-1, 1)], dim=1)
+
+    elif classname == 'LayerNorm':
+        # Weight and bias are each (hidden_size,)
+        # Reshape both to (1, hidden_size).
+        grad_mat = g.view(1, -1)  # => (1, hidden_size)
+        if hasattr(layer, 'bias') and layer.bias is not None:
+            bias_grad = layer.bias.grad.view(1, -1)  # => (1, hidden_size)
+            grad_mat = torch.cat([grad_mat, bias_grad], dim=1)
+            # => (1, 2 * hidden_size)
+
+    else:
+        raise NotImplementedError(f"reshape_grad not implemented for {classname}.")
 
     return grad_mat
 

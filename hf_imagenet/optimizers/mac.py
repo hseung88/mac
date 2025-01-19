@@ -162,12 +162,26 @@ class MAC(Optimizer):
 
                 v = grad_mat @ A_inv
 
-                if layer.bias is not None:
-                    v = [v[:, :-1], v[:, -1:]]
-                    layer.weight.grad.data.copy_(v[0].view_as(layer.weight))
-                    layer.bias.grad.data.copy_(v[1].view_as(layer.bias))
-                else:
-                    layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
+                if isinstance(layer, nn.LayerNorm):
+                    if layer.bias is not None:
+                        hidden_size = layer.weight.numel()
+                        # First half => weight, second half => bias
+                        v_weight = v[:, :hidden_size]  # => (1, hidden_size)
+                        v_bias = v[:, hidden_size:]  # => (1, hidden_size)
+
+                        # Copy back
+                        layer.weight.grad.copy_(v_weight.view_as(layer.weight))  # => (hidden_size,)
+                        layer.bias.grad.copy_(v_bias.view_as(layer.bias))  # => (hidden_size,)
+                    else:
+                        # No bias
+                        layer.weight.grad.copy_(v.view_as(layer.weight))
+                elif isinstance(layer, (nn.Linear, nn.Conv2d):
+                    if layer.bias is not None:
+                        v = [v[:, :-1], v[:, -1:]]
+                        layer.weight.grad.data.copy_(v[0].view_as(layer.weight))
+                        layer.bias.grad.data.copy_(v[1].view_as(layer.bias))
+                    else:
+                        layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
 
         momentum_step(self)
         self._step += 1
