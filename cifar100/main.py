@@ -34,7 +34,7 @@ def get_parser():
     parser.add_argument('--data_dir', default='./data', type=str)
     parser.add_argument('--epoch', default=200, type=int, help='Total number of training epochs')
     parser.add_argument('--model', default='resnet', type=str, help='model',
-                        choices=['resnet32','resnet110','resnet', 'densenet', 'wrn', 'deit_tiny'])
+                        choices=['resnet20', 'resnet32','resnet110','resnet', 'densenet', 'wrn', 'deit_tiny'])
     parser.add_argument('--optim', default='sgd', type=str, help='optimizer',
                         choices=['sgd', 'adam', 'adamw', 'adan', 'kfac', 'foof', 'adaact', 'shaper',
                                  'mac', 'smac', 'sgdhess', 'adahessian', 'eva', 'nysact_g', 'nysact_s',
@@ -146,6 +146,7 @@ def load_checkpoint(ckpt_name):
 def build_model(args, device, ckpt=None):
     print('==> Building model..')
     net = {
+        'resnet20': resnet20,
         'resnet32': resnet32,
         'resnet110': resnet110,
         'resnet': ResNet34,
