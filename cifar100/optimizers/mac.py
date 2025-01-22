@@ -1,3 +1,4 @@
+import math
 from typing import List
 import logging as log
 import torch
@@ -80,9 +81,14 @@ class MAC(Optimizer):
             cov_mat /= n_batches
 
         self.first_layer = first_layer
-        eye_matrix = torch.eye(cov_mat.size(0), device=device, dtype=cov_mat.dtype)
+        #eye_matrix = torch.eye(cov_mat.size(0), device=device, dtype=cov_mat.dtype)
         #self.input_cov_inv = torch.linalg.inv(cov_mat + self.damping * eye_matrix)
-        self.input_cov_inv = torch.cholesky_inverse(torch.linalg.cholesky(cov_mat + self.damping * eye_matrix))
+        #self.input_cov_inv = torch.cholesky_inverse(torch.linalg.cholesky(cov_mat + self.damping * eye_matrix))
+        eye_matrix = torch.eye(cov_mat.size(0), device=cov_mat.device, dtype=cov_mat.dtype)
+        cov_mat_damped = cov_mat + self.damping * eye_matrix
+        L = torch.linalg.cholesky(cov_mat_damped)
+        I_for_solve = torch.eye(L.size(0), device=L.device, dtype=L.dtype)
+        self.sqrt_input_cov_inv = torch.triangular_solve(I_for_solve, L, upper=False).solution
         self.model = net
         self.layer_map[first_layer]['fwd_hook'].remove()
 
@@ -140,7 +146,8 @@ class MAC(Optimizer):
                 grad_mat = reshape_grad(layer)
 
                 if layer == self.first_layer:
-                    A_inv = self.input_cov_inv
+                    #A_inv = self.input_cov_inv
+                    A_inv = self.sqrt_input_cov_inv
                 else:
                     if b_updated:
                         bias_correction = 1.0 - (stat_decay ** self.emastep)
@@ -152,8 +159,12 @@ class MAC(Optimizer):
                         else:
                             state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device))
 
-                        state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
-                        state['A_inv'].div_(damping)
+                        #state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
+                        #state['A_inv'].div_(damping)
+                        state['A_inv'].sub_(
+                            torch.outer(exp_avg, exp_avg).mul_(math.sqrt(damping) + math.sqrt(damping + sq_norm)).div_(
+                                sq_norm * math.sqrt(damping + sq_norm)))
+                        state['A_inv'].div_(math.sqrt(damping))
 
                     A_inv = state['A_inv']
 
