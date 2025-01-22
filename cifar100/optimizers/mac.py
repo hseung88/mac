@@ -88,7 +88,7 @@ class MAC(Optimizer):
         cov_mat_damped = cov_mat + self.damping * eye_matrix
         L = torch.linalg.cholesky(cov_mat_damped)
         I_for_solve = torch.eye(L.size(0), device=L.device, dtype=L.dtype)
-        self.sqrt_input_cov_inv = torch.triangular_solve(I_for_solve, L, upper=False).solution
+        self.sqrt_input_cov_inv = torch.linalg.solve_triangular(L, I_for_solve, upper=False)
         self.model = net
         self.layer_map[first_layer]['fwd_hook'].remove()
 
