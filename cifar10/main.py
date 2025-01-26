@@ -154,7 +154,7 @@ def build_model(args, device, ckpt=None):
     }[args.model]()
     net = net.to(device)
     if device == 'cuda':
-        #net = torch.nn.DataParallel(net)
+        net = torch.nn.DataParallel(net)
         cudnn.benchmark = True
 
     if ckpt:
