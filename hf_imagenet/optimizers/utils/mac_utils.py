@@ -6,6 +6,7 @@ import torch.nn as nn
 from typing import Iterable
 import functools
 
+
 def extract_patches(x, kernel_size, stride, padding, depthwise=False):
     """
     x: input feature map of shape (B x C x H x W)
@@ -114,7 +115,7 @@ def grad_layers(module, memo=None, prefix=''):
 
                 if grad_param:
                     yield module, prefix, grad_param
-                    
+
 
 def build_layer_map(model, fwd_hook_fn=None, bwd_hook_fn=None,
                     supported_layers=(nn.Linear, nn.Conv2d)):
@@ -149,7 +150,7 @@ def sgd_step(optimizer):
             d_p = p.grad.data
             d_p.add_(p.data, alpha=weight_decay)
 
-            #p.data.mul_(1.0 - step_size * weight_decay)
+            # p.data.mul_(1.0 - step_size * weight_decay)
             p.data.add_(d_p, alpha=-step_size)
 
 
@@ -165,7 +166,7 @@ def momentum_step(optimizer):
                 continue
 
             d_p = p.grad.data
-            #d_p.add_(p.data, alpha=weight_decay)
+            d_p.add_(p.data, alpha=weight_decay)
 
             param_state = optimizer.state[p]
 
@@ -173,7 +174,7 @@ def momentum_step(optimizer):
                 param_state['momentum_buffer'] = torch.zeros_like(p)
             d_p = param_state['momentum_buffer'].mul_(momentum).add_(d_p)
 
-            p.data.mul_(1-step_size*weight_decay)
+            # p.data.mul_(1-step_size*weight_decay)
             p.data.add_(d_p, alpha=-step_size)
 
 
@@ -182,14 +183,14 @@ def nag_step(optimizer):
         weight_decay = group['weight_decay']
         step_size = group['lr']
         momentum = group['momentum']
-        
+
         for p in group['params']:
             if p.grad is None:
                 continue
 
             d_p = p.grad.data
-            #d_p.add_(p.data, alpha=weight_decay)
-            
+            # d_p.add_(p.data, alpha=weight_decay)
+
             param_state = optimizer.state[p]
             if 'momentum_buff' not in param_state:
                 param_state['momentum_buff'] = d_p.clone()
@@ -198,6 +199,40 @@ def nag_step(optimizer):
                 buf.mul_(momentum).add_(d_p)
                 d_p.add_(buf, alpha=momentum)
 
-            p.data.mul_(1-step_size*weight_decay)
+            p.data.mul_(1 - step_size * weight_decay)
             p.data.add_(d_p, alpha=-step_size)
-          
+
+
+def adamw_step(optimizer):
+    for group in optimizer.param_groups:
+        lr = group['lr']
+        beta1 = group['beta1']
+        beta2 = group['beta2']
+        eps = group['eps']
+        weight_decay = group['weight_decay']
+
+        for p in group['params']:
+            state = optimizer.state[p]
+            if p.grad is None:
+                continue
+
+            grad = p.grad
+
+            if len(state) == 0:
+                state['step'] = 0
+                state['exp_avg'] = torch.zeros_like(p)
+                state['exp_avg_sq'] = torch.zeros_like(p)
+
+            exp_avg, exp_avg_sq = state['exp_avg'], state['exp_avg_sq']
+            state['step'] += 1
+            exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
+            exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
+
+            denom = exp_avg_sq.sqrt().add_(eps)
+
+            bias_correction1 = 1.0 - beta1 ** state['step']
+            bias_correction2 = 1.0 - beta2 ** state['step']
+            step_size = lr * math.sqrt(bias_correction2) / bias_correction1
+
+            p.data.mul_(1 - step_size * weight_decay)
+            p.data.addcdiv_(exp_avg, denom, value=-step_size)
