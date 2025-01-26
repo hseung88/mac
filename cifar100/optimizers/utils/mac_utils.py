@@ -217,7 +217,7 @@ def adamw_step(optimizer):
 
             grad = p.grad
 
-            if len(state) == 0:
+            if 'exp_avg' not in state:
                 state['step'] = 0
                 state['exp_avg'] = torch.zeros_like(p)
                 state['exp_avg_sq'] = torch.zeros_like(p)
@@ -253,7 +253,7 @@ def adam_step(optimizer):
             grad = p.grad.data
             grad.add_(p.data, alpha=weight_decay)
 
-            if len(state) == 0:
+            if 'exp_avg' not in state:
                 state['step'] = 0
                 state['exp_avg'] = torch.zeros_like(p)
                 state['exp_avg_sq'] = torch.zeros_like(p)
