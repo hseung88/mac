@@ -21,8 +21,8 @@ class MAC2(Optimizer):
             Tcov=5,
             Tinv=50,
     ):
-        if lr < 0.0:
-            raise ValueError(f"Invalid learning rate: {lr}")
+        if lr1 < 0.0:
+            raise ValueError(f"Invalid learning rate: {lr1}")
         if weight_decay < 0.0:
             raise ValueError(f"Invalid weight_decay value: {weight_decay}")
 
