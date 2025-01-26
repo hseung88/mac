@@ -14,6 +14,7 @@ class MAC(Optimizer):
             lr=0.1,
             beta1=0.9,
             beta2=0.999,
+            stat_decay=0.95,
             eps=1e-8,
             damping=1.0,
             weight_decay=5e-4,
@@ -29,6 +30,7 @@ class MAC(Optimizer):
                         beta1=beta1,
                         beta2=beta2,
                         eps=eps,
+                        stat_decay=stat_decay,
                         weight_decay=weight_decay)
         super().__init__(params, defaults)
 
