@@ -133,6 +133,8 @@ class MAC(Optimizer):
             with torch.enable_grad():
                 loss = closure()
 
+        group = self.param_groups[0]
+        stat_decay = group['stat_decay']
         damping = self.damping
         b_updated = (self._step % self.Tinv == 0)
 
