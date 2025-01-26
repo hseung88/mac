@@ -43,7 +43,6 @@ def get_parser():
                                 ])
     parser.add_argument('--run', default=0, type=int, help='number of runs')
     parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
-    parser.add_argument('--lr2', default=0.001, type=float, help='learning rate')
     parser.add_argument('--eps', default=1e-8, type=float, help='eps for numerical stability')
     parser.add_argument('--momentum', default=0.9, type=float, help='momentum term')
     parser.add_argument('--stat_decay', default=1e-4, type=float, help='stat decay')
@@ -93,7 +92,7 @@ def build_dataset(args):
     return train_loader, test_loader
 
 
-def get_ckpt_name(model='resnet', optimizer='sgd', lr=0.1, lr2=0.001, momentum=0.9, stat_decay=0.9,
+def get_ckpt_name(model='resnet', optimizer='sgd', lr=0.1, momentum=0.9, stat_decay=0.9,
                   beta1=0.9, beta2=0.999, eps=1e-8, weight_decay=5e-4, rank=5, projection=True,
                   damping=0.01, tcov=5, tinv=50, update=1, batchsize=128,
                   epoch=200, run=0, lr_scheduler='cosine'):
@@ -115,8 +114,8 @@ def get_ckpt_name(model='resnet', optimizer='sgd', lr=0.1, lr2=0.001, momentum=0
         #'mac': 'lr{}-betas{}-{}-stat_decay{}-damping{}-wdecay{}-eps{}-tcov{}-tinv{}-projection{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
         #    lr, beta1, beta2, stat_decay, damping, weight_decay, eps, tcov, tinv, projection, lr_scheduler, batchsize,
         #    epoch, run),
-        'mac2': 'lr{}-{}-betas{}-{}-damping{}-wdecay{}-eps{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
-            lr, lr2, beta1, beta2, damping, weight_decay, eps, tcov, tinv, lr_scheduler, batchsize, epoch, run),
+        'mac2': 'lr{}-betas{}-{}-damping{}-wdecay{}-eps{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
+            lr, beta1, beta2, damping, weight_decay, eps, tcov, tinv, lr_scheduler, batchsize, epoch, run),
         'smac': 'lr{}-momentum{}-stat_decay{}-damping{}-wdecay{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
             lr, momentum, stat_decay, damping, weight_decay, tcov, tinv, lr_scheduler, batchsize, epoch, run),
         'sgdhess': 'lr{}-momentum{}-wdecay{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
@@ -202,7 +201,7 @@ def create_optimizer(args, model_params):
     #    return MAC(model_params, args.lr, beta1=args.beta1, beta2=args.beta2, stat_decay=args.stat_decay, eps=args.eps,
     #               damping=args.damping, weight_decay=args.weight_decay, Tcov=args.tcov, Tinv=args.tinv)
     elif args.optim == 'mac2':
-        return MAC2(model_params, lr1=args.lr, lr2=args.lr2, beta1=args.beta1, beta2=args.beta2, eps=args.eps,
+        return MAC2(model_params, lr=args.lr, beta1=args.beta1, beta2=args.beta2, eps=args.eps,
                    damping=args.damping, weight_decay=args.weight_decay, Tcov=args.tcov, Tinv=args.tinv)
     elif args.optim == 'smac':
         return SMAC(model_params, args.lr, args.momentum, stat_decay=args.stat_decay, 
@@ -295,7 +294,7 @@ def main():
     train_loader, test_loader = build_dataset(args)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    ckpt_name = get_ckpt_name(model=args.model, optimizer=args.optim, lr=args.lr, lr2=args.lr2,
+    ckpt_name = get_ckpt_name(model=args.model, optimizer=args.optim, lr=args.lr,
                               momentum=args.momentum, stat_decay=args.stat_decay,
                               beta1=args.beta1, beta2=args.beta2,
                               eps = args.eps, run=args.run,
