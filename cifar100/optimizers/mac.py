@@ -102,6 +102,9 @@ class MAC(Optimizer):
 
         self.emastep += 1
 
+        group = self.param_groups[0]
+        stat_decay = group['stat_decay']
+
         actv = forward_input[0].data
         if isinstance(module, nn.Conv2d):
             depthwise = module.groups == actv.size(1)
@@ -119,7 +122,7 @@ class MAC(Optimizer):
         state = self.state[module]
         if 'exp_avg_actv' not in state:
             state['exp_avg_actv'] = torch.zeros_like(avg_actv, device=avg_actv.device)
-        state['exp_avg_actv'] = avg_actv
+        state['exp_avg_actv'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -140,7 +143,8 @@ class MAC(Optimizer):
                     A_inv = self.input_cov_inv
                 else:
                     if b_updated:
-                        exp_avg = state['exp_avg_actv']
+                        bias_correction = 1.0 - (stat_decay ** self.emastep)
+                        exp_avg = state['exp_avg_actv'].div(bias_correction)
                         sq_norm = torch.linalg.norm(exp_avg).pow(2)
 
                         if 'A_inv' not in state:
