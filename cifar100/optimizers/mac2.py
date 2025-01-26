@@ -4,7 +4,7 @@ import logging as log
 import torch
 import torch.nn as nn
 from torch.optim import Optimizer
-from .utils.mac_utils import extract_patches, reshape_grad, build_layer_map, momentum_step, adamw_step
+from .utils.mac_utils import extract_patches, reshape_grad, build_layer_map, momentum_step, adam_step
 
 
 class MAC2(Optimizer):
@@ -64,9 +64,6 @@ class MAC2(Optimizer):
 
         self.emastep += 1
 
-        group = self.param_groups[0]
-        beta2 = group['beta2']
-
         actv = forward_input[0].data
         if isinstance(module, nn.Conv2d):
             depthwise = module.groups == actv.size(1)
@@ -82,9 +79,7 @@ class MAC2(Optimizer):
         avg_actv = actv.mean(0)
 
         state = self.state[module]
-        if 'exp_avg_actv' not in state:
-            state['exp_avg_actv'] = torch.zeros_like(avg_actv, device=avg_actv.device)
-        state['exp_avg_actv'].mul_(beta2).add_(avg_actv, alpha=1 - beta2)
+        state['exp_avg_actv'] = avg_actv
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -93,8 +88,6 @@ class MAC2(Optimizer):
             with torch.enable_grad():
                 loss = closure()
 
-        group = self.param_groups[0]
-        beta2 = group['beta2']
         damping = self.damping
         b_updated = (self._step % self.Tinv == 0)
 
@@ -105,8 +98,7 @@ class MAC2(Optimizer):
                 state['grad_mat'] = grad_mat
 
                 if b_updated:
-                    bias_correction = 1.0 - (beta2 ** self.emastep)
-                    exp_avg = state['exp_avg_actv'].div(bias_correction)
+                    exp_avg = state['exp_avg_actv']
                     sq_norm = torch.linalg.norm(exp_avg).pow(2)
 
                     state['A_inv'] = torch.outer(exp_avg, exp_avg)
@@ -144,7 +136,7 @@ class MAC2(Optimizer):
                 else:
                     layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
 
-        adamw_step(self)
+        adam_step(self)
         self._step += 1
 
         return loss
