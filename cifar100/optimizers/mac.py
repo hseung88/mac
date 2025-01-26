@@ -74,7 +74,10 @@ class MAC(Optimizer):
                     actv = torch.cat([actv, ones], dim=1)
 
                 #A = torch.einsum('ij,jk->ik', actv.t(), actv) / actv.size(0)  # Optimized matrix multiplication
-                A = torch.matmul(actv.t(), actv) / actv.size(0)
+                #A = torch.matmul(actv.t(), actv) / actv.size(0)
+                avg_actv = actv.mean(0)
+                sq_norm = torch.linalg.norm(avg_actv).pow(2)
+                A = torch.outer(avg_actv, avg_actv).mul_(sq_norm).div_(sq_norm + self.damping)
                 if cov_mat is None:
                     cov_mat = A
                 else:
@@ -83,8 +86,9 @@ class MAC(Optimizer):
             cov_mat /= n_batches
 
         self.first_layer = first_layer
-        eye_matrix = torch.eye(cov_mat.size(0), device=device, dtype=cov_mat.dtype)
-        self.input_cov_inv = torch.linalg.inv(cov_mat + self.damping * eye_matrix)
+        #eye_matrix = torch.eye(cov_mat.size(0), device=device, dtype=cov_mat.dtype)
+        #self.input_cov_inv = torch.linalg.inv(cov_mat + self.damping * eye_matrix)
+        self.input_cov_inv =cov_mat
         self.model = net
         self.layer_map[first_layer]['fwd_hook'].remove()
 
