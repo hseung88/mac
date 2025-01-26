@@ -109,8 +109,8 @@ def get_ckpt_name(model='resnet', optimizer='sgd', lr=0.1, momentum=0.9, stat_de
             lr, momentum, stat_decay, damping, weight_decay, tcov, tinv, lr_scheduler, batchsize, epoch, run),
         'adaact': 'lr{}-betas{}-{}-eps{}-wdecay{}-update{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
             lr, beta1, beta2, eps, weight_decay, update, lr_scheduler, batchsize, epoch, run),
-        'mac': 'lr{}-momentum{}-stat_decay{}-damping{}-wdecay{}-tcov{}-tinv{}-projection{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
-            lr, momentum, stat_decay, damping, weight_decay, tcov, tinv, projection, lr_scheduler, batchsize, epoch, run),
+        'mac': 'lr{}-momentum{}-stat_decay{}-damping{}-wdecay{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
+            lr, momentum, stat_decay, damping, weight_decay, tcov, tinv, lr_scheduler, batchsize, epoch, run),
         #'mac': 'lr{}-betas{}-{}-stat_decay{}-damping{}-wdecay{}-eps{}-tcov{}-tinv{}-projection{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
         #    lr, beta1, beta2, stat_decay, damping, weight_decay, eps, tcov, tinv, projection, lr_scheduler, batchsize,
         #    epoch, run),
@@ -196,7 +196,7 @@ def create_optimizer(args, model_params):
                       weight_decay=args.weight_decay, eps=args.eps, update=args.update)
     elif args.optim == 'mac':
         return MAC(model_params, args.lr, args.momentum, stat_decay=args.stat_decay, damping=args.damping,
-                   weight_decay=args.weight_decay, Tcov=args.tcov, Tinv=args.tinv, projection=args.projection)
+                   weight_decay=args.weight_decay, Tcov=args.tcov, Tinv=args.tinv)
     #elif args.optim == 'mac':
     #    return MAC(model_params, args.lr, beta1=args.beta1, beta2=args.beta2, stat_decay=args.stat_decay, eps=args.eps,
     #               damping=args.damping, weight_decay=args.weight_decay, Tcov=args.tcov, Tinv=args.tinv)

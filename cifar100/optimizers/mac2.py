@@ -13,11 +13,11 @@ class MAC2(Optimizer):
             params,
             lr=0.1,
             beta1=0.9,
-            beta2=0.95,
+            beta2=0.999,
             eps=1e-8,
             damping=1.0,
             weight_decay=5e-4,
-            Tcov=5,
+            Tcov=50,
             Tinv=50,
     ):
         if lr < 0.0:
@@ -95,7 +95,7 @@ class MAC2(Optimizer):
             if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
                 state = self.state[layer]
                 grad_mat = reshape_grad(layer)
-                state['grad_mat'] = grad_mat
+                #state['grad_mat'] = grad_mat
 
                 if b_updated:
                     exp_avg = state['exp_avg_actv']
@@ -107,7 +107,7 @@ class MAC2(Optimizer):
                     state['A_inv'].mul_(sq_norm)
                     state['A_inv'].div_(sq_norm + damping)
 
-                A_inv = state['A_inv']
+                A_inv = state['A_inv'] + state['A_ortho_proj']
 
                 v = grad_mat @ A_inv
 
@@ -120,6 +120,7 @@ class MAC2(Optimizer):
 
         momentum_step(self)
 
+        """
         for layer in self.layer_map:
             if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
                 state = self.state[layer]
@@ -137,6 +138,7 @@ class MAC2(Optimizer):
                     layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
 
         adam_step(self)
+        """
         self._step += 1
 
         return loss
