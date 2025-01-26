@@ -53,6 +53,7 @@ def get_parser():
     parser.add_argument('--damping', default=0.01, type=float, help='damping factor for kfac and foof')
     parser.add_argument('--tcov', default=5, type=int, help='preconditioner update period for kfac and foof')
     parser.add_argument('--tinv', default=50, type=int, help='preconditioner inverse period for kfac and foof')
+    parser.add_argument('--projection', action='store_true', help='gradient subspace projection')
     parser.add_argument('--update', default=1, type=int, help='preconditioner update and inverse period')
     parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
     parser.add_argument('--batchsize', type=int, default=128, help='batch size')
@@ -91,7 +92,7 @@ def build_dataset(args):
 
 
 def get_ckpt_name(model='resnet', optimizer='sgd', lr=0.1, momentum=0.9, stat_decay=0.9,
-                  beta1=0.9, beta2=0.999, eps=1e-8, weight_decay=5e-4, rank=5,
+                  beta1=0.9, beta2=0.999, eps=1e-8, weight_decay=5e-4, rank=5, projection=True,
                   damping=0.01, tcov=5, tinv=50, update=1, batchsize=128,
                   epoch=200, run=0, lr_scheduler='cosine'):
     name = {
@@ -107,8 +108,8 @@ def get_ckpt_name(model='resnet', optimizer='sgd', lr=0.1, momentum=0.9, stat_de
             lr, momentum, stat_decay, damping, weight_decay, tcov, tinv, lr_scheduler, batchsize, epoch, run),
         'adaact': 'lr{}-betas{}-{}-eps{}-wdecay{}-update{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
             lr, beta1, beta2, eps, weight_decay, update, lr_scheduler, batchsize, epoch, run),
-        'mac': 'lr{}-momentum{}-stat_decay{}-damping{}-wdecay{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
-            lr, momentum, stat_decay, damping, weight_decay, tcov, tinv, lr_scheduler, batchsize, epoch, run),
+        'mac': 'lr{}-momentum{}-stat_decay{}-damping{}-wdecay{}-tcov{}-tinv{}-projection{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
+            lr, momentum, stat_decay, damping, weight_decay, tcov, tinv, projection, lr_scheduler, batchsize, epoch, run),
         'smac': 'lr{}-momentum{}-stat_decay{}-damping{}-wdecay{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
             lr, momentum, stat_decay, damping, weight_decay, tcov, tinv, lr_scheduler, batchsize, epoch, run),
         'sgdhess': 'lr{}-momentum{}-wdecay{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
@@ -188,8 +189,8 @@ def create_optimizer(args, model_params):
         return AdaAct(model_params, args.lr, betas=(args.beta1, args.beta2),
                       weight_decay=args.weight_decay, eps=args.eps, update=args.update)
     elif args.optim == 'mac':
-        return MAC(model_params, args.lr, args.momentum, stat_decay=args.stat_decay,
-                        damping=args.damping, weight_decay=args.weight_decay, Tcov=args.tcov, Tinv=args.tinv)
+        return MAC(model_params, args.lr, args.momentum, stat_decay=args.stat_decay, damping=args.damping,
+                   weight_decay=args.weight_decay, Tcov=args.tcov, Tinv=args.tinv, projection=args.projection)
     elif args.optim == 'smac':
         return SMAC(model_params, args.lr, args.momentum, stat_decay=args.stat_decay, 
                          damping=args.damping, weight_decay=args.weight_decay, Tcov=args.tcov, Tinv=args.tinv)
@@ -288,7 +289,7 @@ def main():
                               weight_decay = args.weight_decay,
                               damping=args.damping, tcov=args.tcov, tinv=args.tinv,
                               rank=args.rank, epoch=args.epoch, batchsize=args.batchsize,
-                              update=args.update, lr_scheduler=args.lr_scheduler,
+                              update=args.update, lr_scheduler=args.lr_scheduler, projection=args.projection,
                               )
     print('ckpt_name:', ckpt_name)
     if args.resume:
