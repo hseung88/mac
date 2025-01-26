@@ -151,14 +151,14 @@ class MAC(Optimizer):
 
                         if self.projection:
                             if 'A_inv' not in state:
-                                state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=actv.dtype)
+                                state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype)
                             state['A_inv'].mul_(torch.outer(exp_avg, exp_avg).mul_(sq_norm))
                             state['A_inv'].div_(sq_norm + self.damping)
                         else:
                             if 'A_inv' not in state:
-                                state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=actv.dtype)
+                                state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype)
                             else:
-                                state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=actv.dtype))
+                                state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype))
 
                             state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
                             state['A_inv'].div_(damping)
