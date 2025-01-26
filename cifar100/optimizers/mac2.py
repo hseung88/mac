@@ -11,7 +11,8 @@ class MAC2(Optimizer):
     def __init__(
             self,
             params,
-            lr=0.1,
+            lr1=0.1,
+            lr2=0.001,
             beta1=0.9,
             beta2=0.95,
             eps=1e-8,
@@ -25,7 +26,8 @@ class MAC2(Optimizer):
         if weight_decay < 0.0:
             raise ValueError(f"Invalid weight_decay value: {weight_decay}")
 
-        defaults = dict(lr=lr,
+        defaults = dict(lr1=lr1,
+                        lr2=lr2,
                         beta1=beta1,
                         beta2=beta2,
                         eps=eps,

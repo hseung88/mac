@@ -157,7 +157,7 @@ def momentum_step(optimizer):
     # update parameters
     for group in optimizer.param_groups:
         weight_decay = group['weight_decay']
-        step_size = group['lr']
+        step_size = group['lr1']
         momentum = group['beta1']
 
         for p in group['params']:
@@ -204,7 +204,7 @@ def nag_step(optimizer):
 
 def adamw_step(optimizer):
     for group in optimizer.param_groups:
-        lr = group['lr']
+        lr = group['lr2']
         beta1 = group['beta1']
         beta2 = group['beta2']
         eps = group['eps']
@@ -239,7 +239,7 @@ def adamw_step(optimizer):
 
 def adam_step(optimizer):
     for group in optimizer.param_groups:
-        lr = group['lr']
+        lr = group['lr2']
         beta1 = group['beta1']
         beta2 = group['beta2']
         eps = group['eps']
