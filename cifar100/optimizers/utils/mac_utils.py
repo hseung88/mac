@@ -158,7 +158,7 @@ def momentum_step(optimizer):
     for group in optimizer.param_groups:
         weight_decay = group['weight_decay']
         step_size = group['lr']
-        momentum = group['momentum']
+        momentum = group['beta1']
 
         for p in group['params']:
             if p.grad is None:
