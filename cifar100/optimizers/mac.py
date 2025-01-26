@@ -4,29 +4,31 @@ import logging as log
 import torch
 import torch.nn as nn
 from torch.optim import Optimizer
-from .utils.mac_utils import extract_patches, reshape_grad, build_layer_map, trainable_modules, momentum_step, nag_step
+from .utils.mac_utils import extract_patches, reshape_grad, build_layer_map, trainable_modules, momentum_step, adamw_step
+
 
 class MAC(Optimizer):
     def __init__(
-        self,
-        params,
-        lr=0.1,
-        momentum=0.9,
-        stat_decay=0.95,
-        damping=1.0,
-        weight_decay=5e-4,
-        Tcov=5,
-        Tinv=50,
-        projection=True,
+            self,
+            params,
+            lr=0.1,
+            beta1=0.9,
+            beta2=0.999,
+            eps=1e-8,
+            damping=1.0,
+            weight_decay=5e-4,
+            Tcov=5,
+            Tinv=50,
     ):
         if lr < 0.0:
             raise ValueError(f"Invalid learning rate: {lr}")
         if weight_decay < 0.0:
             raise ValueError(f"Invalid weight_decay value: {weight_decay}")
 
-        defaults = dict(lr=lr, 
-                        momentum=momentum,
-                        stat_decay=stat_decay,
+        defaults = dict(lr=lr,
+                        beta1=beta1,
+                        beta2=beta2,
+                        eps=eps,
                         weight_decay=weight_decay)
         super().__init__(params, defaults)
 
@@ -36,8 +38,6 @@ class MAC(Optimizer):
         self.Tinv = Tinv
         self._step = 0
         self.emastep = 0
-        self.projection = projection
-        
 
     @property
     def model(self):
@@ -53,15 +53,15 @@ class MAC(Optimizer):
     def _configure(self, train_loader, net, device):
         n_batches = len(train_loader)
         cov_mat = None
-        
+
         # Handle the case when the model is wrapped in DistributedDataParallel
-        #if hasattr(net, 'module'):
+        # if hasattr(net, 'module'):
         #    net = net.module
 
         _, first_layer = next(trainable_modules(net))
 
         # Directly capture the first layer (patch embedding) of ViTs
-        #first_layer = net.patch_embed.proj
+        # first_layer = net.patch_embed.proj
 
         with torch.no_grad():
             for images, _ in train_loader:
@@ -73,11 +73,8 @@ class MAC(Optimizer):
                     ones = actv.new_ones((actv.shape[0], 1))
                     actv = torch.cat([actv, ones], dim=1)
 
-                #A = torch.einsum('ij,jk->ik', actv.t(), actv) / actv.size(0)  # Optimized matrix multiplication
-                #A = torch.matmul(actv.t(), actv) / actv.size(0)
-                avg_actv = actv.mean(0)
-                sq_norm = torch.linalg.norm(avg_actv).pow(2)
-                A = torch.outer(avg_actv, avg_actv).mul_(sq_norm).div_(sq_norm + self.damping)
+                # A = torch.einsum('ij,jk->ik', actv.t(), actv) / actv.size(0)  # Optimized matrix multiplication
+                A = torch.matmul(actv.t(), actv) / actv.size(0)
                 if cov_mat is None:
                     cov_mat = A
                 else:
@@ -86,28 +83,24 @@ class MAC(Optimizer):
             cov_mat /= n_batches
 
         self.first_layer = first_layer
-        #eye_matrix = torch.eye(cov_mat.size(0), device=device, dtype=cov_mat.dtype)
-        #self.input_cov_inv = torch.linalg.inv(cov_mat + self.damping * eye_matrix)
-        self.input_cov_inv =cov_mat
+        eye_matrix = torch.eye(cov_mat.size(0), device=device, dtype=cov_mat.dtype)
+        self.input_cov_inv = torch.linalg.inv(cov_mat + self.damping * eye_matrix)
         self.model = net
         self.layer_map[first_layer]['fwd_hook'].remove()
 
     def _capture_activation(
-        self,
-        module: nn.Module,
-        forward_input: List[torch.Tensor],
-        _forward_output: torch.Tensor
+            self,
+            module: nn.Module,
+            forward_input: List[torch.Tensor],
+            _forward_output: torch.Tensor
     ):
         if not module.training or not torch.is_grad_enabled():
             return
-            
+
         if (self._step % self.Tcov) != 0:
             return
 
         self.emastep += 1
-            
-        group = self.param_groups[0]
-        stat_decay = group['stat_decay']
 
         actv = forward_input[0].data
         if isinstance(module, nn.Conv2d):
@@ -124,9 +117,9 @@ class MAC(Optimizer):
         avg_actv = actv.mean(0)
 
         state = self.state[module]
-        if 'exp_avg' not in state:
-            state['exp_avg'] = torch.zeros_like(avg_actv, device=avg_actv.device, dtype=actv.dtype)
-        state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
+        if 'exp_avg_actv' not in state:
+            state['exp_avg_actv'] = torch.zeros_like(avg_actv, device=avg_actv.device)
+        state['exp_avg_actv'] = avg_actv
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -135,11 +128,9 @@ class MAC(Optimizer):
             with torch.enable_grad():
                 loss = closure()
 
-        group = self.param_groups[0]
-        stat_decay = group['stat_decay']
         damping = self.damping
         b_updated = (self._step % self.Tinv == 0)
-        
+
         for layer in self.layer_map:
             if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
                 state = self.state[layer]
@@ -149,25 +140,16 @@ class MAC(Optimizer):
                     A_inv = self.input_cov_inv
                 else:
                     if b_updated:
-                        bias_correction = 1.0 - (stat_decay ** self.emastep)
-                        exp_avg = state['exp_avg'].div(bias_correction)
+                        exp_avg = state['exp_avg_actv']
                         sq_norm = torch.linalg.norm(exp_avg).pow(2)
 
-                        if self.projection:
-                            if 'A_inv' not in state:
-                                state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype)
-                            else:
-                                state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype))
-                            state['A_inv'].mul_(torch.outer(exp_avg, exp_avg).mul_(sq_norm))
-                            state['A_inv'].div_(sq_norm + self.damping)
+                        if 'A_inv' not in state:
+                            state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device)
                         else:
-                            if 'A_inv' not in state:
-                                state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype)
-                            else:
-                                state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype))
+                            state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device))
 
-                            state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
-                            state['A_inv'].div_(damping)
+                        state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
+                        state['A_inv'].div_(damping)
 
                     A_inv = state['A_inv']
 
@@ -180,7 +162,7 @@ class MAC(Optimizer):
                 else:
                     layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
 
-        momentum_step(self)
+        adamw_step(self)
         self._step += 1
-        
+
         return loss

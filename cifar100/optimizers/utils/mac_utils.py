@@ -200,4 +200,38 @@ def nag_step(optimizer):
 
             p.data.mul_(1-step_size*weight_decay)
             p.data.add_(d_p, alpha=-step_size)
-          
+
+
+def adamw_step(optimizer):
+    for group in optimizer.param_groups:
+        lr = group['lr']
+        beta1 = group['beta1']
+        beta2 = group['beta2']
+        eps = group['eps']
+        weight_decay = group['weight_decay']
+
+        for p in group['params']:
+            state = optimizer.state[p]
+            if p.grad is None:
+                continue
+
+            grad = p.grad
+
+            if len(state) == 0:
+                state['step'] = 0
+                state['exp_avg'] = torch.zeros_like(p)
+                state['exp_avg_sq'] = torch.zeros_like(p)
+
+            exp_avg, exp_avg_sq = state['exp_avg'], state['exp_avg_sq']
+            state['step'] += 1
+            exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
+            exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
+
+            denom = exp_avg_sq.sqrt().add_(eps)
+
+            bias_correction1 = 1.0 - beta1 ** state['step']
+            bias_correction2 = 1.0 - beta2 ** state['step']
+            step_size = lr * math.sqrt(bias_correction2) / bias_correction1
+
+            p.data.mul_(1 - step_size * weight_decay)
+            p.data.addcdiv_(exp_avg, denom, value=-step_size)
