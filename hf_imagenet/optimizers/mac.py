@@ -17,8 +17,8 @@ class MAC(Optimizer):
             eps=1e-8,
             damping=0.01,
             weight_decay=0.05,
-            Tcov=1,
-            Tinv=1,
+            Tcov=10,
+            Tinv=10,
     ):
         if lr < 0.0:
             raise ValueError(f"Invalid learning rate: {lr}")
