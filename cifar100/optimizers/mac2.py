@@ -102,6 +102,7 @@ class MAC2(Optimizer):
             if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
                 state = self.state[layer]
                 grad_mat = reshape_grad(layer)
+                state['grad_mat'] = grad_mat
 
                 if b_updated:
                     bias_correction = 1.0 - (beta2 ** self.emastep)
@@ -130,7 +131,7 @@ class MAC2(Optimizer):
         for layer in self.layer_map:
             if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
                 state = self.state[layer]
-                grad_mat = reshape_grad(layer)
+                grad_mat = state['grad_mat']
 
                 A_ortho_proj = state['A_ortho_proj']
 
@@ -143,7 +144,7 @@ class MAC2(Optimizer):
                 else:
                     layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
 
-        adamw_step(self)
+        adam_step(self)
         self._step += 1
 
         return loss
