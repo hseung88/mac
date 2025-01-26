@@ -118,7 +118,7 @@ class MAC2(Optimizer):
                 else:
                     layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
 
-        momentum_step(self)
+        adamw_step(self)
 
         """
         for layer in self.layer_map:
