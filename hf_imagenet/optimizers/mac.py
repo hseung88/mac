@@ -142,9 +142,9 @@ class MAC(Optimizer):
                         sq_norm = torch.linalg.norm(exp_avg).pow(2)
 
                         if 'A_inv' not in state:
-                            state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device)
+                            state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype)
                         else:
-                            state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device))
+                            state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype))
 
                         state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
                         state['A_inv'].div_(damping)
