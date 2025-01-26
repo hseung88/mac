@@ -109,6 +109,8 @@ class MAC2(Optimizer):
                     sq_norm = torch.linalg.norm(exp_avg).pow(2)
 
                     state['A_inv'] = torch.outer(exp_avg, exp_avg)
+                    state['A_ortho_proj'] = torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype).sub_(
+                        state['A_inv'])
                     state['A_inv'].mul_(sq_norm)
                     state['A_inv'].div_(sq_norm + damping)
 
@@ -129,10 +131,6 @@ class MAC2(Optimizer):
             if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
                 state = self.state[layer]
                 grad_mat = reshape_grad(layer)
-
-                if b_updated:
-                    A_inv = state['A_inv']
-                    state['A_ortho_proj'] = torch.eye(A_inv.size(0), device=A_inv.device, dtype=A_inv.dtype).sub_(A_inv)
 
                 A_ortho_proj = state['A_ortho_proj']
 
