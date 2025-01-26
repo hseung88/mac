@@ -165,7 +165,10 @@ class MAC(Optimizer):
                     A_inv = state['A_inv']
                     A_proj = state['aat']
 
-                v = grad_mat @ A_proj @ A_inv
+                if layer == self.first_layer:
+                    v = grad_mat @ A_inv
+                else:
+                    v = grad_mat @ A_proj @ A_inv
 
                 if layer.bias is not None:
                     v = [v[:, :-1], v[:, -1:]]
