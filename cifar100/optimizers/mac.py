@@ -53,8 +53,8 @@ class MAC(Optimizer):
         cov_mat = None
         
         # Handle the case when the model is wrapped in DistributedDataParallel
-        if hasattr(net, 'module'):
-            net = net.module
+        #if hasattr(net, 'module'):
+        #    net = net.module
 
         _, first_layer = next(trainable_modules(net))
 
@@ -82,8 +82,8 @@ class MAC(Optimizer):
 
         self.first_layer = first_layer
         eye_matrix = torch.eye(cov_mat.size(0), device=device, dtype=cov_mat.dtype)
-        #self.input_cov_inv = torch.linalg.inv(cov_mat + self.damping * eye_matrix)
-        self.input_cov_inv = torch.cholesky_inverse(torch.linalg.cholesky(cov_mat + self.damping * eye_matrix))
+        self.input_cov_inv = torch.linalg.inv(cov_mat + self.damping * eye_matrix)
+        #self.input_cov_inv = torch.cholesky_inverse(torch.linalg.cholesky(cov_mat + self.damping * eye_matrix))
         #eye_matrix = torch.eye(cov_mat.size(0), device=cov_mat.device, dtype=cov_mat.dtype)
         #cov_mat_damped = cov_mat + self.damping * eye_matrix
         #L = torch.linalg.cholesky(cov_mat_damped)
