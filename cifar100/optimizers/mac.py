@@ -4,7 +4,7 @@ import logging as log
 import torch
 import torch.nn as nn
 from torch.optim import Optimizer
-from .utils.mac_utils import extract_patches, reshape_grad, build_layer_map, trainable_modules, momentum_step, adamw_step
+from .utils.mac_utils import extract_patches, reshape_grad, build_layer_map, trainable_modules, momentum_step, nag_step
 
 
 class MAC(Optimizer):
@@ -12,10 +12,8 @@ class MAC(Optimizer):
             self,
             params,
             lr=0.1,
-            beta1=0.9,
-            beta2=0.999,
+            momentum=0.9,
             stat_decay=0.95,
-            eps=1e-8,
             damping=1.0,
             weight_decay=5e-4,
             Tcov=5,
@@ -27,9 +25,7 @@ class MAC(Optimizer):
             raise ValueError(f"Invalid weight_decay value: {weight_decay}")
 
         defaults = dict(lr=lr,
-                        beta1=beta1,
-                        beta2=beta2,
-                        eps=eps,
+                        momentum=momentum,
                         stat_decay=stat_decay,
                         weight_decay=weight_decay)
         super().__init__(params, defaults)
@@ -87,6 +83,12 @@ class MAC(Optimizer):
         self.first_layer = first_layer
         eye_matrix = torch.eye(cov_mat.size(0), device=device, dtype=cov_mat.dtype)
         self.input_cov_inv = torch.linalg.inv(cov_mat + self.damping * eye_matrix)
+        # self.input_cov_inv = torch.cholesky_inverse(torch.linalg.cholesky(cov_mat + self.damping * eye_matrix))
+        # eye_matrix = torch.eye(cov_mat.size(0), device=cov_mat.device, dtype=cov_mat.dtype)
+        # cov_mat_damped = cov_mat + self.damping * eye_matrix
+        # L = torch.linalg.cholesky(cov_mat_damped)
+        # I_for_solve = torch.eye(L.size(0), device=L.device, dtype=L.dtype)
+        # self.sqrt_input_cov_inv = torch.linalg.solve_triangular(L, I_for_solve, upper=False)
         self.model = net
         self.layer_map[first_layer]['fwd_hook'].remove()
 
@@ -122,9 +124,9 @@ class MAC(Optimizer):
         avg_actv = actv.mean(0)
 
         state = self.state[module]
-        if 'exp_avg_actv' not in state:
-            state['exp_avg_actv'] = torch.zeros_like(avg_actv, device=avg_actv.device)
-        state['exp_avg_actv'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
+        if 'exp_avg' not in state:
+            state['exp_avg'] = torch.zeros_like(avg_actv, device=avg_actv.device)
+        state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -148,7 +150,7 @@ class MAC(Optimizer):
                 else:
                     if b_updated:
                         bias_correction = 1.0 - (stat_decay ** self.emastep)
-                        exp_avg = state['exp_avg_actv'].div(bias_correction)
+                        exp_avg = state['exp_avg'].div(bias_correction)
                         sq_norm = torch.linalg.norm(exp_avg).pow(2)
 
                         if 'A_inv' not in state:
@@ -170,7 +172,7 @@ class MAC(Optimizer):
                 else:
                     layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
 
-        adamw_step(self)
+        momentum_step(self)
         self._step += 1
 
         return loss
