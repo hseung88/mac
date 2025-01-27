@@ -160,15 +160,10 @@ class MAC(Optimizer):
 
                         state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
                         state['A_inv'].div_(damping)
-                        state['aat'] = torch.outer(exp_avg, exp_avg)
 
                     A_inv = state['A_inv']
-                    A_proj = state['aat']
 
-                if layer == self.first_layer:
-                    v = grad_mat @ A_inv
-                else:
-                    v = grad_mat @ A_proj @ A_inv
+                v = grad_mat @ A_inv
 
                 if layer.bias is not None:
                     v = [v[:, :-1], v[:, -1:]]
