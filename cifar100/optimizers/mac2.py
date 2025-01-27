@@ -4,19 +4,19 @@ import logging as log
 import torch
 import torch.nn as nn
 from torch.optim import Optimizer
-from .utils.mac_utils import extract_patches, reshape_grad, build_layer_map, momentum_step, adamw_step
+from .utils.mac_utils import extract_patches, reshape_grad, build_layer_map, momentum_step, adam_step
 
 
 class MAC2(Optimizer):
     def __init__(
             self,
             params,
-            lr=0.1,
+            lr=0.001,
             beta1=0.9,
             beta2=0.999,
             eps=1e-8,
             damping=1.0,
-            weight_decay=5e-4,
+            weight_decay=0.01,
             Tcov=5,
             Tinv=50,
     ):
@@ -98,10 +98,12 @@ class MAC2(Optimizer):
         damping = self.damping
         b_updated = (self._step % self.Tinv == 0)
 
+        # Preconditioned SGD step
         for layer in self.layer_map:
             if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
                 state = self.state[layer]
                 grad_mat = reshape_grad(layer)
+                state['grad_mat'] = grad_mat
 
                 if b_updated:
                     bias_correction = 1.0 - (beta2 ** self.emastep)
@@ -112,16 +114,11 @@ class MAC2(Optimizer):
                     state['A_inv'] = torch.outer(exp_avg, exp_avg)
                     state['A_inv'].div_(sq_norm + damping)
 
-                    state['A_ortho_inv'] = eye_matrix.sub_(torch.outer(exp_avg, exp_avg))
-                    state['A_ortho_inv'].mul_(-self.damping).div_(1.0 + self.damping - sq_norm)
-                    state['A_ortho_inv'].add_(eye_matrix).div_(1.0 + self.damping)
-                    #state['A_ortho_inv'].div_(damping + exp_avg.size(0) - sq_norm)
+                    state['A_ortho_proj'] = eye_matrix.sub_(torch.outer(exp_avg, exp_avg))
 
                 A_inv = state['A_inv']
-                A_ortho_inv = state['A_ortho_inv']
 
-                v = 2 * grad_mat - grad_mat @ A_inv - grad_mat @ A_ortho_inv
-                #v = grad_mat @ A_inv
+                v = grad_mat @ A_inv
 
                 if layer.bias is not None:
                     v = [v[:, :-1], v[:, -1:]]
@@ -131,6 +128,25 @@ class MAC2(Optimizer):
                     layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
 
         momentum_step(self)
+
+        for layer in self.layer_map:
+            if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
+                state = self.state[layer]
+                grad_mat = state['grad_mat']
+
+                A_ortho_proj = state['A_ortho_proj']
+
+                v = grad_mat @ A_ortho_proj
+
+                if layer.bias is not None:
+                    v = [v[:, :-1], v[:, -1:]]
+                    layer.weight.grad.data.copy_(v[0].view_as(layer.weight))
+                    layer.bias.grad.data.copy_(v[1].view_as(layer.bias))
+                else:
+                    layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
+
+        adam_step(self)
+
         self._step += 1
 
         return loss

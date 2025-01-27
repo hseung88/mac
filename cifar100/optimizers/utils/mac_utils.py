@@ -242,7 +242,7 @@ def adamw_step(optimizer):
 
 def adam_step(optimizer):
     for group in optimizer.param_groups:
-        lr = group['lr']
+        lr = group['lr'] / 100.0
         beta1 = group['beta1']
         beta2 = group['beta2']
         eps = group['eps']
@@ -254,7 +254,7 @@ def adam_step(optimizer):
                 continue
 
             grad = p.grad.data
-            grad.add_(p.data, alpha=weight_decay)
+            #grad.add_(p.data, alpha=weight_decay)
 
             if 'exp_avg' not in state:
                 state['step'] = 0
