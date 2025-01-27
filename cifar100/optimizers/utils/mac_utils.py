@@ -242,7 +242,7 @@ def adamw_step(optimizer):
 
 def adam_step(optimizer):
     for group in optimizer.param_groups:
-        lr = group['lr'] / 100
+        lr = group['lr']
         beta1 = group['beta1']
         beta2 = group['beta2']
         eps = group['eps']
