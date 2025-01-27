@@ -177,7 +177,8 @@ def momentum_step(optimizer):
             d_p = param_state['momentum_buffer'].mul_(momentum).add_(d_p)
 
             #p.data.mul_(1-step_size*weight_decay)
-            p.data.add_(d_p, alpha=-step_size)
+            #p.data.add_(d_p, alpha=-step_size)
+            p.data.add_(d_p, alpha=+step_size)
 
 
 def nag_step(optimizer):
