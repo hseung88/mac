@@ -120,7 +120,7 @@ class MAC2(Optimizer):
                 A_inv = state['A_inv']
                 A_ortho_inv = state['A_ortho_inv']
 
-                v = grad_mat - grad_mat @ A_inv - grad_mat @ A_ortho_inv
+                v = 2 * grad_mat - grad_mat @ A_inv - grad_mat @ A_ortho_inv
                 #v = grad_mat @ A_inv
 
                 if layer.bias is not None:
