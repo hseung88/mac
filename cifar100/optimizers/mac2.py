@@ -107,19 +107,20 @@ class MAC2(Optimizer):
                     bias_correction = 1.0 - (beta2 ** self.emastep)
                     exp_avg = state['exp_avg_actv'].div(bias_correction)
                     sq_norm = torch.linalg.norm(exp_avg).pow(2)
-                    eye_matrix = torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype)
+                    #eye_matrix = torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype)
 
                     state['A_inv'] = torch.outer(exp_avg, exp_avg)
                     state['A_inv'].div_(sq_norm + damping)
 
-                    state['A_ortho_inv'] = eye_matrix.sub_(torch.outer(exp_avg, exp_avg))
+                    #state['A_ortho_inv'] = eye_matrix.sub_(torch.outer(exp_avg, exp_avg))
                     #state['A_ortho_inv'].mul_(-self.damping).div_(1.0 + self.damping - sq_norm)
                     #state['A_ortho_inv'].add_(eye_matrix).div_(1.0 + self.damping)
 
                 A_inv = state['A_inv']
-                A_ortho_inv = state['A_ortho_inv']
+                #A_ortho_inv = state['A_ortho_inv']
 
-                v = grad_mat @ (A_inv + A_ortho_inv)
+                #v = grad_mat @ (A_inv + A_ortho_inv)
+                v = grad_mat @ A_inv
 
                 if layer.bias is not None:
                     v = [v[:, :-1], v[:, -1:]]
