@@ -64,6 +64,9 @@ class MAC2(Optimizer):
 
         self.emastep += 1
 
+        group = self.param_groups[0]
+        beta2 = group['beta2']
+
         actv = forward_input[0].data
         if isinstance(module, nn.Conv2d):
             depthwise = module.groups == actv.size(1)
@@ -79,7 +82,9 @@ class MAC2(Optimizer):
         avg_actv = actv.mean(0)
 
         state = self.state[module]
-        state['exp_avg_actv'] = avg_actv
+        if 'exp_avg_actv' not in state:
+            state['exp_avg_actv'] = torch.zeros_like(avg_actv, device=avg_actv.device)
+        state['exp_avg_actv'].mul_(beta2).add_(avg_actv, alpha=1 - beta2)
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -88,6 +93,8 @@ class MAC2(Optimizer):
             with torch.enable_grad():
                 loss = closure()
 
+        group = self.param_groups[0]
+        beta2 = group['beta2']
         damping = self.damping
         b_updated = (self._step % self.Tinv == 0)
 
@@ -95,40 +102,24 @@ class MAC2(Optimizer):
             if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
                 state = self.state[layer]
                 grad_mat = reshape_grad(layer)
-                #state['grad_mat'] = grad_mat
 
                 if b_updated:
-                    exp_avg = state['exp_avg_actv']
+                    bias_correction = 1.0 - (beta2 ** self.emastep)
+                    exp_avg = state['exp_avg_actv'].div(bias_correction)
                     sq_norm = torch.linalg.norm(exp_avg).pow(2)
+                    eye_matrix = torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype)
 
                     state['A_inv'] = torch.outer(exp_avg, exp_avg)
-                    state['A_ortho_proj'] = torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype).sub_(
-                        state['A_inv'])
-                    state['A_inv'].mul_(sq_norm)
                     state['A_inv'].div_(sq_norm + damping)
 
-                A_inv = state['A_inv'] + state['A_ortho_proj']
+                    state['A_ortho_inv'] = torch.outer(exp_avg, exp_avg)
+                    state['A_ortho_inv'].mul_(-self.damping).div_(1.0 + self.damping - sq_norm)
+                    state['A_ortho_inv'].add_(eye_matrix).div_(1.0 + self.damping)
 
-                v = grad_mat @ A_inv
+                A_inv = state['A_inv']
+                A_ortho_inv = state['A_ortho_inv']
 
-                if layer.bias is not None:
-                    v = [v[:, :-1], v[:, -1:]]
-                    layer.weight.grad.data.copy_(v[0].view_as(layer.weight))
-                    layer.bias.grad.data.copy_(v[1].view_as(layer.bias))
-                else:
-                    layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
-
-        adamw_step(self)
-
-        """
-        for layer in self.layer_map:
-            if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
-                state = self.state[layer]
-                grad_mat = state['grad_mat']
-
-                A_ortho_proj = state['A_ortho_proj']
-
-                v = grad_mat @ A_ortho_proj
+                v = grad_mat @ (A_inv + A_ortho_inv)
 
                 if layer.bias is not None:
                     v = [v[:, :-1], v[:, -1:]]
@@ -137,8 +128,7 @@ class MAC2(Optimizer):
                 else:
                     layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
 
-        adam_step(self)
-        """
+        momentum_step(self)
         self._step += 1
 
         return loss
