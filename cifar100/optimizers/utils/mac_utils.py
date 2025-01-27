@@ -177,8 +177,7 @@ def momentum_step(optimizer):
             d_p = param_state['momentum_buffer'].mul_(momentum).add_(d_p)
 
             #p.data.mul_(1-step_size*weight_decay)
-            #p.data.add_(d_p, alpha=-step_size)
-            p.data.add_(d_p, alpha=+step_size)
+            p.data.add_(d_p, alpha=-step_size)
 
 
 def nag_step(optimizer):
@@ -243,7 +242,7 @@ def adamw_step(optimizer):
 
 def adam_step(optimizer):
     for group in optimizer.param_groups:
-        lr = group['lr'] / 100.0
+        lr = group['lr'] / 100
         beta1 = group['beta1']
         beta2 = group['beta2']
         eps = group['eps']
