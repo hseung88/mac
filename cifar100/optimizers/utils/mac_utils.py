@@ -319,8 +319,8 @@ def update_step(optimizer):
                 exp_avg_sq.mul_(beta2).addcmul_(p.grad, p.grad, value=1 - beta2)
 
                 # Compute bias-corrected first moment estimate
-                bias_correction1 = 1 - beta1 ** state['step']
-                bias_correction2 = 1 - beta2 ** state['step']
+                bias_correction1 = 1 - beta1 ** state['_step']
+                bias_correction2 = 1 - beta2 ** state['_step']
 
                 # Compute step size
                 step_size = lr * (math.sqrt(bias_correction2) / bias_correction1)
