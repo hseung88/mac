@@ -85,11 +85,13 @@ class MAC2(Optimizer):
         #var_actv = actv.var(dim=0)
 
         state = self.state[module]
-        if 'exp_avg_actv' not in state:
-            state['exp_avg_mean'] = torch.zeros_like(mean_actv, device=mean_actv.device)
-            state['exp_avg_var'] = torch.zeros_like(var_actv, device=var_actv.device)
-        state['exp_avg_mean'].mul_(beta2).add_(mean_actv, alpha=1 - beta2)
-        state['exp_avg_var'].mul_(beta2).add_(var_actv, alpha=1 - beta2)
+        #if 'exp_avg_actv' not in state:
+        #    state['exp_avg_mean'] = torch.zeros_like(mean_actv, device=mean_actv.device)
+        #    state['exp_avg_var'] = torch.zeros_like(var_actv, device=var_actv.device)
+        #state['exp_avg_mean'].mul_(beta2).add_(mean_actv, alpha=1 - beta2)
+        #state['exp_avg_var'].mul_(beta2).add_(var_actv, alpha=1 - beta2)
+        state['exp_avg_mean'] = mean_actv
+        state['exp_avg_var'] = var_actv
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -111,16 +113,23 @@ class MAC2(Optimizer):
                 #state['grad_mat'] = grad_mat
 
                 if b_updated:
-                    bias_correction = 1.0 - (beta2 ** self.emastep)
-                    exp_avg_mean = state['exp_avg_mean'].div(bias_correction)
-                    exp_avg_var = state['exp_avg_var'].div(bias_correction)
-                    exp_avg_var += damping
-                    m_div_v = exp_avg_mean / exp_avg_var
-                    denominator = 1.0 + exp_avg_mean.dot(m_div_v)
-                    correction = torch.outer(m_div_v, m_div_v) / denominator
+                    exp_avg_mean = state['exp_avg_mean']
+                    exp_avg_var = state['exp_avg_var']
+                    sq_norm = torch.linalg.norm(exp_avg_mean).pow(2)
+                    state['A_inv'] = torch.diag(1.0 / (exp_avg_var + damping))
+                    state['A_inv'].sub_(torch.outer(exp_avg_mean, exp_avg_mean).div_(damping + sq_norm))
 
-                    state['A_inv'] = torch.diag(1.0 / exp_avg_var)
-                    state['A_inv'].sub_(correction)
+                    #bias_correction = 1.0 - (beta2 ** self.emastep)
+                    #exp_avg_mean = state['exp_avg_mean'].div(bias_correction)
+                    #exp_avg_var = state['exp_avg_var'].div(bias_correction)
+
+                    #exp_avg_var += damping
+                    #m_div_v = exp_avg_mean / exp_avg_var
+                    #denominator = 1.0 + exp_avg_mean.dot(m_div_v)
+                    #correction = torch.outer(m_div_v, m_div_v) / denominator
+
+                    #state['A_inv'] = torch.diag(1.0 / exp_avg_var)
+                    #state['A_inv'].sub_(correction)
 
                     # sq_norm = torch.linalg.norm(exp_avg).pow(2)
                     #eye_matrix = torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype)
