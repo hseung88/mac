@@ -79,12 +79,16 @@ class MAC2(Optimizer):
             ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)
             actv = torch.cat([actv, ones], dim=1)
 
-        avg_actv = actv.mean(0)
+        mean_actv = actv.mean(0)
+        var_actv = torch.mean(actv.pow(2), axis=0)
+        #var_actv = actv.var(dim=0, unbiased=True)
 
         state = self.state[module]
         if 'exp_avg_actv' not in state:
-            state['exp_avg_actv'] = torch.zeros_like(avg_actv, device=avg_actv.device)
-        state['exp_avg_actv'].mul_(beta2).add_(avg_actv, alpha=1 - beta2)
+            state['exp_avg_mean'] = torch.zeros_like(mean_actv, device=mean_actv.device)
+            state['exp_avg_var'] = torch.zeros_like(var_actv, device=mean_actv.device)
+        state['exp_avg_mean'].mul_(beta2).add_(mean_actv, alpha=1 - beta2)
+        state['exp_avg_var'].mul_(beta2).add_(mean_actv, alpha=1 - beta2)
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -103,23 +107,32 @@ class MAC2(Optimizer):
             if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
                 state = self.state[layer]
                 grad_mat = reshape_grad(layer)
-                state['grad_mat'] = grad_mat
+                #state['grad_mat'] = grad_mat
 
                 if b_updated:
                     bias_correction = 1.0 - (beta2 ** self.emastep)
-                    exp_avg = state['exp_avg_actv'].div(bias_correction)
-                    sq_norm = torch.linalg.norm(exp_avg).pow(2)
+                    exp_avg_mean = state['exp_avg_mean'].div(bias_correction)
+                    exp_avg_var = state['exp_avg_var'].div(bias_correction)
+                    m_div_v = exp_avg_mean / exp_avg_var
+                    denominator = 1.0 + exp_avg_mean.dot(m_div_v) + damping
+                    correction = torch.outer(m_div_v, m_div_v) / denominator
+
+                    state['A_inv'] = torch.diag(1.0 / exp_avg_var, device=exp_avg.device)
+                    state['A_inv'].sub_(correction)
+
+                    # sq_norm = torch.linalg.norm(exp_avg).pow(2)
                     #eye_matrix = torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype)
 
-                    state['A_inv'] = torch.outer(exp_avg, exp_avg)
-                    state['A_inv'].div_(sq_norm + damping)
-                    state['A_inv'].div_(damping)
+                    #state['A_inv'] = torch.outer(exp_avg, exp_avg)
+                    #state['A_inv'].div_(sq_norm + damping)
+                    #state['A_inv'].div_(damping)
 
                     #state['A_ortho_proj'] = eye_matrix.sub_(torch.outer(exp_avg, exp_avg))
 
                 A_inv = state['A_inv']
+                v = grad_mat @ A_inv
 
-                v = grad_mat.div(damping + torch.linalg.norm(grad_mat).pow(2)).div(damping) - grad_mat @ A_inv
+                #v = grad_mat.div(damping + torch.linalg.norm(grad_mat).pow(2)).div(damping) - grad_mat @ A_inv
 
                 if layer.bias is not None:
                     v = [v[:, :-1], v[:, -1:]]
