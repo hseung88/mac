@@ -80,8 +80,8 @@ class MAC2(Optimizer):
             actv = torch.cat([actv, ones], dim=1)
 
         mean_actv = actv.mean(0)
-        #var_actv = torch.mean(actv.pow(2), axis=0)
-        var_actv = actv.var(dim=0, unbiased=True)
+        var_actv = torch.mean(actv.pow(2), axis=0)
+        #var_actv = actv.var(dim=0, unbiased=True)
         #var_actv = actv.var(dim=0)
 
         state = self.state[module]
