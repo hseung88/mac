@@ -19,13 +19,13 @@ from optimizers.foof import FOOF
 from optimizers.adaact_v2 import AdaAct
 from optimizers.mac import MAC
 from optimizers.mac2 import MAC2
+from optimizers.mac_fosi import MACFOSI
 #from optimizers.mac_v2 import MAC_v2
 from optimizers.smac import SMAC
 from optimizers.sgdhess import SGDHess
 from optimizers.adahessian import Adahessian
 from optimizers.eva import Eva
 from optimizers.nysact_mod import NysAct_G, NysAct_S
-#from optimizers.nysact_ls import NysAct_LS
 from optimizers.shaper import Shaper
 from optimizers.soap import SOAP
 
@@ -39,7 +39,7 @@ def get_parser():
     parser.add_argument('--optim', default='sgd', type=str, help='optimizer',
                         choices=['sgd', 'adam', 'adamw', 'adan', 'kfac', 'foof', 'adaact', 'shaper',
                                  'mac', 'smac', 'sgdhess', 'adahessian', 'eva', 'nysact_g', 'nysact_s',
-                                 'soap', 'mac2'
+                                 'soap', 'mac2', 'macfosi'
                                 ])
     parser.add_argument('--run', default=0, type=int, help='number of runs')
     parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
@@ -116,6 +116,8 @@ def get_ckpt_name(model='resnet', optimizer='sgd', lr=0.1, momentum=0.9, stat_de
         #    epoch, run),
         'mac2': 'lr{}-betas{}-{}-damping{}-wdecay{}-eps{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
             lr, beta1, beta2, damping, weight_decay, eps, tcov, tinv, lr_scheduler, batchsize, epoch, run),
+        'macfosi': 'lr{}-momentum{}-stat_decay{}-betas{}-{}-damping{}-wdecay{}-eps{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
+            lr, momentum, stat_decay, beta1, beta2, damping, weight_decay, eps, tcov, tinv, lr_scheduler, batchsize, epoch, run),
         'smac': 'lr{}-momentum{}-stat_decay{}-damping{}-wdecay{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
             lr, momentum, stat_decay, damping, weight_decay, tcov, tinv, lr_scheduler, batchsize, epoch, run),
         'sgdhess': 'lr{}-momentum{}-wdecay{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
@@ -203,6 +205,10 @@ def create_optimizer(args, model_params):
     elif args.optim == 'mac2':
         return MAC2(model_params, lr=args.lr, beta1=args.beta1, beta2=args.beta2, eps=args.eps,
                    damping=args.damping, weight_decay=args.weight_decay, Tcov=args.tcov, Tinv=args.tinv)
+    elif args.optim == 'macfosi':
+        return MACFOSI(model_params, lr=args.lr, momentum=args.momentum, stat_decay=args.stat_decay,
+                       beta1=args.beta1, beta2=args.beta2, eps=args.eps, damping=args.damping,
+                       weight_decay=args.weight_decay, Tcov=args.tcov, Tinv=args.tinv)
     elif args.optim == 'smac':
         return SMAC(model_params, args.lr, args.momentum, stat_decay=args.stat_decay, 
                          damping=args.damping, weight_decay=args.weight_decay, Tcov=args.tcov, Tinv=args.tinv)
@@ -328,7 +334,7 @@ def main():
     optimizer = create_optimizer(args, net.parameters())
     
     #if args.optim in ['foof', 'adaact', 'nysact', 'shaper', 'kfac']:
-    if args.optim in ['foof', 'adaact', 'nysact_g', 'nysact_s', 'shaper', 'mac2']:
+    if args.optim in ['foof', 'adaact', 'nysact_g', 'nysact_s', 'shaper', 'mac2', 'macfosi']:
         optimizer.model = net
     elif args.optim in ['mac','smac']:
         optimizer._configure(train_loader, net, device)

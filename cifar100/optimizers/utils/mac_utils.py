@@ -276,3 +276,59 @@ def adam_step(optimizer):
             step_size = lr * math.sqrt(bias_correction2) / bias_correction1
 
             p.data.addcdiv_(exp_avg, denom, value=-step_size)
+
+
+def update_step(optimizer):
+    group = optimizer.param_groups[0]
+    weight_decay = group['weight_decay']
+    lr = group['lr']
+    beta1 = group['beta1']
+    beta2 = group['beta2']
+    eps = group['eps']
+
+    for layer, info in optimizer.layer_map.items():
+        if isinstance(layer, (nn.Linear, nn.Conv2d)):
+            # Vanilla SGD Update
+            for pname, p in info['params']:
+                if p.grad is None:
+                    continue
+                d_p = p.grad.data
+                if weight_decay != 0:
+                    d_p = d_p.add(p.data, alpha=weight_decay)
+                p.data.add_(d_p, alpha=-lr)
+        else:
+            # Adam Update
+            for pname, p in info['params']:
+                if p.grad is None:
+                    continue
+                state = optimizer.state[p]
+
+                # Initialize state if not present
+                if 'exp_avg' not in state:
+                    state['exp_avg'] = torch.zeros_like(p.data)
+                    state['exp_avg_sq'] = torch.zeros_like(p.data)
+                    state['_step'] = 0
+
+                exp_avg, exp_avg_sq = state['exp_avg'], state['exp_avg_sq']
+                state['_step'] += 1
+
+                # Update biased first moment estimate
+                exp_avg.mul_(beta1).add_(p.grad, alpha=1 - beta1)
+
+                # Update biased second raw moment estimate
+                exp_avg_sq.mul_(beta2).addcmul_(p.grad, p.grad, value=1 - beta2)
+
+                # Compute bias-corrected first moment estimate
+                bias_correction1 = 1 - beta1 ** state['step']
+                bias_correction2 = 1 - beta2 ** state['step']
+
+                # Compute step size
+                step_size = lr * (math.sqrt(bias_correction2) / bias_correction1)
+
+                # Update parameters
+                denom = exp_avg_sq.sqrt().add_(eps)
+                p.data.addcdiv_(exp_avg, denom, value=-step_size)
+
+                # Apply weight decay (if any) after Adam update
+                if weight_decay != 0:
+                    p.data.add_(p.data, alpha=-lr * weight_decay)
