@@ -116,7 +116,7 @@ class MAC2(Optimizer):
                     exp_avg_mean = state['exp_avg_mean']
                     exp_avg_var = state['exp_avg_var']
                     sq_norm = torch.linalg.norm(exp_avg_mean).pow(2)
-                    state['A_inv'] = torch.diag(1.0 / (exp_avg_var))
+                    state['A_inv'] = torch.diag(1.0 / (exp_avg_var + 1e-8))
                     state['A_inv'].sub_(torch.outer(exp_avg_mean, exp_avg_mean).div_(damping + sq_norm))
 
                     #bias_correction = 1.0 - (beta2 ** self.emastep)
