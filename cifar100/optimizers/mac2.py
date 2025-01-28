@@ -81,8 +81,8 @@ class MAC2(Optimizer):
 
         mean_actv = actv.mean(0)
         #var_actv = torch.mean(actv.pow(2), axis=0)
-        #var_actv = actv.var(dim=0, unbiased=True)
-        var_actv = actv.var(dim=0)
+        var_actv = actv.var(dim=0, unbiased=True)
+        #var_actv = actv.var(dim=0)
 
         state = self.state[module]
         if 'exp_avg_actv' not in state:
