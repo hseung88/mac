@@ -54,6 +54,7 @@ def get_parser():
     parser.add_argument('--damping', default=0.01, type=float, help='damping factor for kfac and foof')
     parser.add_argument('--tcov', default=5, type=int, help='preconditioner update period for kfac and foof')
     parser.add_argument('--tinv', default=50, type=int, help='preconditioner inverse period for kfac and foof')
+    parser.add_argument('--lr_scale', default=100, type=int, help='scale lr of preconditioned SGD')
     parser.add_argument('--projection', action='store_true', help='gradient subspace projection')
     parser.add_argument('--update', default=1, type=int, help='preconditioner update and inverse period')
     parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
@@ -93,7 +94,7 @@ def build_dataset(args):
 
 
 def get_ckpt_name(model='resnet', optimizer='sgd', lr=0.1, momentum=0.9, stat_decay=0.9,
-                  beta1=0.9, beta2=0.999, eps=1e-8, weight_decay=5e-4, rank=5, projection=True,
+                  beta1=0.9, beta2=0.999, eps=1e-8, weight_decay=5e-4, rank=5, projection=True, lr_scale=100,
                   damping=0.01, tcov=5, tinv=50, update=1, batchsize=128,
                   epoch=200, run=0, lr_scheduler='cosine'):
     name = {
@@ -116,8 +117,8 @@ def get_ckpt_name(model='resnet', optimizer='sgd', lr=0.1, momentum=0.9, stat_de
         #    epoch, run),
         'mac2': 'lr{}-betas{}-{}-damping{}-wdecay{}-eps{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
             lr, beta1, beta2, damping, weight_decay, eps, tcov, tinv, lr_scheduler, batchsize, epoch, run),
-        'macfosi': 'lr{}-momentum{}-stat_decay{}-betas{}-{}-damping{}-wdecay{}-eps{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
-            lr, momentum, stat_decay, beta1, beta2, damping, weight_decay, eps, tcov, tinv, lr_scheduler, batchsize, epoch, run),
+        'macfosi': 'lr{}-momentum{}-stat_decay{}-betas{}-{}-damping{}-wdecay{}-eps{}-tcov{}-tinv{}-lrscale{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
+            lr, momentum, stat_decay, beta1, beta2, damping, weight_decay, eps, tcov, tinv, lr_scale, lr_scheduler, batchsize, epoch, run),
         'smac': 'lr{}-momentum{}-stat_decay{}-damping{}-wdecay{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
             lr, momentum, stat_decay, damping, weight_decay, tcov, tinv, lr_scheduler, batchsize, epoch, run),
         'sgdhess': 'lr{}-momentum{}-wdecay{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
@@ -208,7 +209,7 @@ def create_optimizer(args, model_params):
     elif args.optim == 'macfosi':
         return MACFOSI(model_params, lr=args.lr, momentum=args.momentum, stat_decay=args.stat_decay,
                        beta1=args.beta1, beta2=args.beta2, eps=args.eps, damping=args.damping,
-                       weight_decay=args.weight_decay, Tcov=args.tcov, Tinv=args.tinv)
+                       weight_decay=args.weight_decay, Tcov=args.tcov, Tinv=args.tinv, lr_scale=args.lr_scale)
     elif args.optim == 'smac':
         return SMAC(model_params, args.lr, args.momentum, stat_decay=args.stat_decay, 
                          damping=args.damping, weight_decay=args.weight_decay, Tcov=args.tcov, Tinv=args.tinv)
@@ -305,7 +306,7 @@ def main():
                               beta1=args.beta1, beta2=args.beta2,
                               eps = args.eps, run=args.run,
                               weight_decay = args.weight_decay,
-                              damping=args.damping, tcov=args.tcov, tinv=args.tinv,
+                              damping=args.damping, tcov=args.tcov, tinv=args.tinv, lr_scale=args.lr_scale,
                               rank=args.rank, epoch=args.epoch, batchsize=args.batchsize,
                               update=args.update, lr_scheduler=args.lr_scheduler, projection=args.projection,
                               )

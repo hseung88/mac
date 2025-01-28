@@ -20,6 +20,7 @@ class MACFOSI(Optimizer):
             weight_decay=5e-4,
             Tcov=50,
             Tinv=50,
+            lr_scale=100,
     ):
         if lr < 0.0:
             raise ValueError(f"Invalid learning rate: {lr}")
@@ -41,6 +42,7 @@ class MACFOSI(Optimizer):
         self.Tinv = Tinv
         self._step = 0
         self.emastep = 0
+        self.lr_scale = lr_scale
 
     @property
     def model(self):
@@ -97,6 +99,7 @@ class MACFOSI(Optimizer):
                 loss = closure()
 
         group = self.param_groups[0]
+        lr = group['lr']
         momentum = group['momentum']
         stat_decay = group['stat_decay']
         beta1 = group['beta1']
@@ -123,7 +126,7 @@ class MACFOSI(Optimizer):
 
                 A_inv = state['A_inv']
 
-                d1 = grad_mat @ A_inv
+                d1 = self.lr_scale * grad_mat @ A_inv
 
                 if 'momentum_buffer' not in state:
                     state['momentum_buffer'] = torch.zeros_like(d1, device=d1.device)
