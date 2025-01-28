@@ -117,7 +117,7 @@ class MAC2(Optimizer):
                     denominator = 1.0 + exp_avg_mean.dot(m_div_v) + damping
                     correction = torch.outer(m_div_v, m_div_v) / denominator
 
-                    state['A_inv'] = torch.diag(1.0 / exp_avg_var, device=exp_avg.device)
+                    state['A_inv'] = torch.diag(1.0 / exp_avg_var, device=exp_avg_mean.device)
                     state['A_inv'].sub_(correction)
 
                     # sq_norm = torch.linalg.norm(exp_avg).pow(2)
