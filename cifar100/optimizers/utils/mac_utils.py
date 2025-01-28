@@ -184,7 +184,10 @@ def nag_step(optimizer):
     for group in optimizer.param_groups:
         weight_decay = group['weight_decay']
         step_size = group['lr']
-        momentum = group['momentum']
+        if 'beta1' in group:
+            momentum = group['beta1']
+        else:
+            momentum = group['momentum']
         
         for p in group['params']:
             if p.grad is None:
