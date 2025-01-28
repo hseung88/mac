@@ -4,7 +4,7 @@ import logging as log
 import torch
 import torch.nn as nn
 from torch.optim import Optimizer
-from .utils.mac_utils import extract_patches, reshape_grad, build_layer_map, momentum_step, adam_step
+from .utils.mac_utils import extract_patches, reshape_grad, build_layer_map, momentum_step, nag_step, adam_step
 
 
 class MAC2(Optimizer):
@@ -143,7 +143,8 @@ class MAC2(Optimizer):
                 else:
                     layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
 
-        momentum_step(self)
+        #momentum_step(self)
+        nag_step(self)
         """
         for layer in self.layer_map:
             if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
