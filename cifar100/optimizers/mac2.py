@@ -123,7 +123,7 @@ class MAC2(Optimizer):
                     #exp_avg_mean = state['exp_avg_mean'].div(bias_correction)
                     #exp_avg_var = state['exp_avg_var'].div(bias_correction)
 
-                    exp_avg_var += damping * lr
+                    exp_avg_var += damping
                     m_div_v = exp_avg_mean / exp_avg_var
                     denominator = 1.0 + exp_avg_mean.dot(m_div_v)
                     correction = torch.outer(m_div_v, m_div_v) / denominator
