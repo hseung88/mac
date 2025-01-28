@@ -189,7 +189,7 @@ def nag_step(optimizer):
                 continue
 
             d_p = p.grad.data
-            # d_p.add_(p.data, alpha=weight_decay)
+            d_p.add_(p.data, alpha=weight_decay)
 
             param_state = optimizer.state[p]
             if 'momentum_buff' not in param_state:

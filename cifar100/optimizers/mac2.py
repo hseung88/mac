@@ -82,7 +82,7 @@ class MAC2(Optimizer):
         mean_actv = actv.mean(0)
         #var_actv = torch.mean(actv.pow(2), axis=0)
         #var_actv = actv.var(dim=0, unbiased=True)
-        var_actv = torch.sqrt(actv.var(dim=0))
+        var_actv = actv.var(dim=0)
 
         state = self.state[module]
         #if 'exp_avg_actv' not in state:
@@ -101,7 +101,7 @@ class MAC2(Optimizer):
                 loss = closure()
 
         group = self.param_groups[0]
-        beta2 = group['beta2']
+        lr = group['lr']
         damping = self.damping
         b_updated = (self._step % self.Tinv == 0)
 
@@ -123,7 +123,7 @@ class MAC2(Optimizer):
                     #exp_avg_mean = state['exp_avg_mean'].div(bias_correction)
                     #exp_avg_var = state['exp_avg_var'].div(bias_correction)
 
-                    exp_avg_var += damping
+                    exp_avg_var += damping * lr
                     m_div_v = exp_avg_mean / exp_avg_var
                     denominator = 1.0 + exp_avg_mean.dot(m_div_v)
                     correction = torch.outer(m_div_v, m_div_v) / denominator
