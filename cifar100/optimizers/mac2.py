@@ -80,16 +80,16 @@ class MAC2(Optimizer):
             actv = torch.cat([actv, ones], dim=1)
 
         mean_actv = actv.mean(0)
-        #var_actv = torch.mean(actv.pow(2), axis=0)
+        var_actv = torch.mean(actv.pow(2), axis=0)
         #var_actv = actv.var(dim=0, unbiased=True)
-        var_actv = actv.var(dim=0)
+        #var_actv = actv.var(dim=0)
 
         state = self.state[module]
         if 'exp_avg_actv' not in state:
             state['exp_avg_mean'] = torch.zeros_like(mean_actv, device=mean_actv.device)
             state['exp_avg_var'] = torch.zeros_like(var_actv, device=mean_actv.device)
         state['exp_avg_mean'].mul_(beta2).add_(mean_actv, alpha=1 - beta2)
-        state['exp_avg_var'].mul_(beta2).add_(mean_actv, alpha=1 - beta2)
+        state['exp_avg_var'].mul_(beta2).add_(var_actv, alpha=1 - beta2)
 
     @torch.no_grad()
     def step(self, closure=None):
