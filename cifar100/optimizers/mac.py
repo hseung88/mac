@@ -153,7 +153,7 @@ class MAC(Optimizer):
                         exp_avg = state['exp_avg'].div(bias_correction)
                         sq_norm = torch.linalg.norm(exp_avg).pow(2)
 
-                        state['A_inv'] = sq_norm / (damping + sq_norm)
+                        state['A_inv'] = (sq_norm / (damping + sq_norm)).item()
 
                         #if 'A_inv' not in state:
                         #    state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device)
