@@ -70,10 +70,10 @@ class AdaNorm(Optimizer):
 
                 m.mul_(beta1).add_(grad_mat, alpha=1 - beta1)
 
-                #grad_mean_col, grad_mean_row = grad_mat.mean(0), grad_mat.mean(1)
-                #grad_outer = torch.outer(grad_mean_row, grad_mean_col)
-                #v.mul_(beta2).add_(grad_outer, alpha=1 - beta2)
-                v.mul_(beta2).addcmul_(grad_mat, grad_mat, value=1 - beta2)
+                grad_mean_col, grad_mean_row = grad_mat.mean(0), grad_mat.mean(1)
+                grad_outer = torch.outer(grad_mean_row, grad_mean_col)
+                v.mul_(beta2).add_(grad_outer, alpha=1 - beta2)
+                #v.mul_(beta2).addcmul_(grad_mat, grad_mat, value=1 - beta2)
 
                 m_hat = m / (1 - beta1 ** t)
                 v_hat = v / (1 - beta2 ** t)
