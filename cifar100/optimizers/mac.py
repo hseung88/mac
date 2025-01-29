@@ -135,14 +135,23 @@ class MAC(Optimizer):
                 loss = closure()
 
         group = self.param_groups[0]
+        momentum = group['momentum']
         stat_decay = group['stat_decay']
         damping = self.damping
         b_updated = (self._step % self.Tinv == 0)
+        self._step += 1
 
         for layer in self.layer_map:
             if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
                 state = self.state[layer]
                 grad_mat = reshape_grad(layer)
+
+                if 'exp_avg_grad' not in state:
+                    state['exp_avg_grad'] = torch.zeros_like(grad_mat)
+                state['exp_avg_grad'].mul_(momentum).add_(grad_mat, alpha=1 - momentum)
+
+                bias_correction_g = 1.0 - (momentum ** self._step)
+                grad_mat = state['exp_avg_grad'].div(bias_correction_g)
 
                 if layer == self.first_layer:
                     A_inv = self.input_cov_inv
@@ -150,7 +159,6 @@ class MAC(Optimizer):
                     if b_updated:
                         bias_correction = 1.0 - (stat_decay ** self.emastep)
                         exp_avg = state['exp_avg'].div(bias_correction)
-                        exp_avg_ev = state['exp_avg_ev'].div(bias_correction)
                         sq_norm = torch.linalg.norm(exp_avg).pow(2)
 
                         if 'A_inv' not in state:
@@ -173,6 +181,5 @@ class MAC(Optimizer):
                     layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
 
         momentum_step(self)
-        self._step += 1
 
         return loss
