@@ -116,16 +116,11 @@ class MAC(Optimizer):
             actv = torch.cat([actv, ones], dim=1)
 
         avg_actv = actv.mean(0)
-        avg_actv.div_(torch.linalg.norm(avg_actv))
-        A = torch.matmul(actv.t(), actv)
-        ev = torch.matmul(torch.matmul(avg_actv.t(), A), avg_actv)
 
         state = self.state[module]
         if 'exp_avg' not in state:
             state['exp_avg'] = torch.zeros_like(avg_actv, device=avg_actv.device)
-            state['exp_avg_ev'] = torch.zeros_like(ev, device=ev.device)
         state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
-        state['exp_avg_ev'].mul_(stat_decay).add_(ev, alpha=1 - stat_decay)
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -180,6 +175,6 @@ class MAC(Optimizer):
                 else:
                     layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
 
-        momentum_step(self)
+        sgd_step(self)
 
         return loss
