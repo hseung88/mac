@@ -116,11 +116,15 @@ class MAC(Optimizer):
             actv = torch.cat([actv, ones], dim=1)
 
         avg_actv = actv.mean(0)
+        A = torch.matmul(actv.t(), actv)
+        ev = torch.matmul(torch.matmul(avg_actv.t(), A), avg_actv)
 
         state = self.state[module]
         if 'exp_avg' not in state:
             state['exp_avg'] = torch.zeros_like(avg_actv, device=avg_actv.device)
+            state['exp_avg_ev'] = torch.zeros_like(ev, device=ev.device)
         state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
+        state['exp_avg_ev'].mul_(stat_decay).add_(ev, alpha=1 - stat_decay)
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -145,6 +149,7 @@ class MAC(Optimizer):
                     if b_updated:
                         bias_correction = 1.0 - (stat_decay ** self.emastep)
                         exp_avg = state['exp_avg'].div(bias_correction)
+                        exp_avg_ev = state['exp_avg_ev'].div(bias_correction)
                         sq_norm = torch.linalg.norm(exp_avg).pow(2)
 
                         if 'A_inv' not in state:
@@ -152,7 +157,9 @@ class MAC(Optimizer):
                         else:
                             state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device))
 
-                        state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
+                        #state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
+                        state['A_inv'].sub_(
+                            (exp_avg_ev * torch.outer(exp_avg, exp_avg)).div_(damping + sq_norm * exp_avg_ev))
                         #state['A_inv'].div_(damping)
 
                     A_inv = state['A_inv']
