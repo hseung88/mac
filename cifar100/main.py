@@ -189,7 +189,7 @@ def create_optimizer(args, model_params):
         return Adam(model_params, args.lr, betas=(args.beta1, args.beta2),
                           weight_decay=args.weight_decay, eps=args.eps)
     elif args.optim == 'adanorm':
-        return AdaNorm(model_params, args.lr, betas=(args.beta1, args.beta2),
+        return AdaNorm(model_params, args.lr, beta1=args.beta1, beta2=args.beta2,
                           weight_decay=args.weight_decay, eps=args.eps)
     elif args.optim == 'adamw':
         return AdamW(model_params, args.lr, betas=(args.beta1, args.beta2),
