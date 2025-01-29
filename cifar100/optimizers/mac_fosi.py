@@ -125,11 +125,12 @@ class MACFOSI(Optimizer):
 
                 A_inv = state['A_inv']
 
-                d1 = grad_mat @ A_inv
+                d1 = grad_mat @ A_inv * self.lr_scale
 
-                if 'momentum_buffer' not in state:
-                    state['momentum_buffer'] = torch.zeros_like(d1, device=d1.device)
-                d_heavyball = state['momentum_buffer'].mul_(momentum).add_(d1, alpha=self.lr_scale)
+                #if 'momentum_buffer' not in state:
+                #    state['momentum_buffer'] = torch.zeros_like(d1, device=d1.device)
+                #d_heavyball = state['momentum_buffer'].mul_(momentum).add_(d1)
+                d_heavyball = d1
 
                 # Base optimizer step (Adam)
                 eye_matrix = torch.eye(grad_mat.size(1), device=grad_mat.device, dtype=grad_mat.dtype)
@@ -149,8 +150,7 @@ class MACFOSI(Optimizer):
                 bias_correction2 = 1.0 - beta2 ** (self._step + 1)
 
                 grad_mat_proj_adam = (exp_avg / denom) * (math.sqrt(bias_correction2) / bias_correction1)
-                #d_adam = grad_mat_proj_adam @ project_mat
-                d_adam = grad_mat_proj_adam
+                d_adam = grad_mat_proj_adam @ project_mat
 
                 v = d_heavyball + d_adam
 
