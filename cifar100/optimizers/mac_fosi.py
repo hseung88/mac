@@ -99,7 +99,6 @@ class MACFOSI(Optimizer):
                 loss = closure()
 
         group = self.param_groups[0]
-        lr = group['lr']
         momentum = group['momentum']
         stat_decay = group['stat_decay']
         beta1 = group['beta1']
@@ -116,25 +115,25 @@ class MACFOSI(Optimizer):
 
                 # Preconditioning step
                 bias_correction = 1.0 - (stat_decay ** self.emastep)
-                exp_avg = state['exp_avg_actv'].div(bias_correction)
+                exp_avg_actv = state['exp_avg_actv'].div(bias_correction)
                 if b_updated:
-                    sq_norm = torch.linalg.norm(exp_avg).pow(2)
+                    sq_norm = torch.linalg.norm(exp_avg_actv).pow(2)
 
-                    state['A_inv'] = torch.outer(exp_avg, exp_avg)
-                    #state['A_inv'].mul_(sq_norm).div_(sq_norm + damping)
-                    state['A_inv'].div_(sq_norm + damping)
+                    state['A_inv'] = torch.outer(exp_avg_actv, exp_avg_actv)
+                    state['A_inv'].mul_(sq_norm).div_(sq_norm + damping)
+                    #state['A_inv'].div_(sq_norm + damping)
 
                 A_inv = state['A_inv']
 
-                d1 = self.lr_scale * grad_mat @ A_inv
+                d1 = grad_mat @ A_inv
 
                 if 'momentum_buffer' not in state:
                     state['momentum_buffer'] = torch.zeros_like(d1, device=d1.device)
-                d_heavyball = state['momentum_buffer'].mul_(momentum).add_(d1)
+                d_heavyball = state['momentum_buffer'].mul_(momentum).add_(d1, alpha=self.lr_scale)
 
                 # Base optimizer step (Adam)
                 eye_matrix = torch.eye(grad_mat.size(1), device=grad_mat.device, dtype=grad_mat.dtype)
-                project_mat = eye_matrix.sub_(torch.outer(exp_avg, exp_avg))
+                project_mat = eye_matrix.sub_(torch.outer(exp_avg_actv, exp_avg_actv))
                 grad_mat_proj = grad_mat @ project_mat
 
                 if 'exp_avg' not in state:
@@ -150,7 +149,8 @@ class MACFOSI(Optimizer):
                 bias_correction2 = 1.0 - beta2 ** (self._step + 1)
 
                 grad_mat_proj_adam = (exp_avg / denom) * (math.sqrt(bias_correction2) / bias_correction1)
-                d_adam = grad_mat_proj_adam @ project_mat
+                #d_adam = grad_mat_proj_adam @ project_mat
+                d_adam = grad_mat_proj_adam
 
                 v = d_heavyball + d_adam
 

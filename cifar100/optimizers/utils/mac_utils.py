@@ -257,7 +257,7 @@ def adam_step(optimizer):
                 continue
 
             grad = p.grad.data
-            #grad.add_(p.data, alpha=weight_decay)
+            grad.add_(p.data, alpha=weight_decay)
 
             if 'exp_avg' not in state:
                 state['step'] = 0
