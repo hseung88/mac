@@ -121,7 +121,7 @@ class MACFOSI(Optimizer):
 
                     state['A_inv'] = torch.outer(exp_avg_actv, exp_avg_actv)
                     #state['A_inv'].mul_(sq_norm).div_(sq_norm + damping)
-                    state['A_inv'].div_(damping * (sq_norm + damping))
+                    state['A_inv'].div_(sq_norm + damping)
 
                 A_inv = state['A_inv']
 
