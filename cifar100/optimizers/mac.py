@@ -116,6 +116,7 @@ class MAC(Optimizer):
             actv = torch.cat([actv, ones], dim=1)
 
         avg_actv = actv.mean(0)
+        avg_actv.div_(torch.linalg.norm(avg_actv))
         A = torch.matmul(actv.t(), actv)
         ev = torch.matmul(torch.matmul(avg_actv.t(), A), avg_actv)
 
