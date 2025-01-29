@@ -4,21 +4,20 @@ import logging as log
 import torch
 import torch.nn as nn
 from torch.optim import Optimizer
-from .utils.mac_utils import extract_patches, reshape_grad, build_layer_map, adamw_step
+from .utils.mac_utils import extract_patches, reshape_grad, build_layer_map, trainable_modules, momentum_step, nag_step
 
 
 class MAC(Optimizer):
     def __init__(
             self,
             params,
-            lr=0.001,
-            beta1=0.9,
-            beta2=0.999,
-            eps=1e-8,
-            damping=0.01,
-            weight_decay=0.05,
-            Tcov=100,
-            Tinv=100,
+            lr=0.1,
+            momentum=0.9,
+            stat_decay=0.95,
+            damping=1e-8,
+            weight_decay=5e-4,
+            Tcov=5,
+            Tinv=50,
     ):
         if lr < 0.0:
             raise ValueError(f"Invalid learning rate: {lr}")
@@ -26,9 +25,8 @@ class MAC(Optimizer):
             raise ValueError(f"Invalid weight_decay value: {weight_decay}")
 
         defaults = dict(lr=lr,
-                        beta1=beta1,
-                        beta2=beta2,
-                        eps=eps,
+                        momentum=momentum,
+                        stat_decay=stat_decay,
                         weight_decay=weight_decay)
         super().__init__(params, defaults)
 
@@ -102,6 +100,9 @@ class MAC(Optimizer):
 
         self.emastep += 1
 
+        group = self.param_groups[0]
+        stat_decay = group['stat_decay']
+
         actv = forward_input[0].data
         if isinstance(module, nn.Conv2d):
             depthwise = module.groups == actv.size(1)
@@ -117,7 +118,9 @@ class MAC(Optimizer):
         avg_actv = actv.mean(0)
 
         state = self.state[module]
-        state['exp_avg_actv'] = avg_actv
+        if 'exp_avg' not in state:
+            state['exp_avg'] = torch.zeros_like(avg_actv, device=avg_actv.device)
+        state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -126,6 +129,8 @@ class MAC(Optimizer):
             with torch.enable_grad():
                 loss = closure()
 
+        group = self.param_groups[0]
+        stat_decay = group['stat_decay']
         damping = self.damping
         b_updated = (self._step % self.Tinv == 0)
 
@@ -138,16 +143,17 @@ class MAC(Optimizer):
                     A_inv = self.input_cov_inv
                 else:
                     if b_updated:
-                        exp_avg = state['exp_avg_actv']
+                        bias_correction = 1.0 - (stat_decay ** self.emastep)
+                        exp_avg = state['exp_avg'].div(bias_correction)
                         sq_norm = torch.linalg.norm(exp_avg).pow(2)
 
                         if 'A_inv' not in state:
-                            state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype)
+                            state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device)
                         else:
-                            state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype))
+                            state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device))
 
                         state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
-                        state['A_inv'].div_(damping)
+                        #state['A_inv'].div_(damping)
 
                     A_inv = state['A_inv']
 
@@ -160,7 +166,7 @@ class MAC(Optimizer):
                 else:
                     layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
 
-        adamw_step(self)
+        momentum_step(self)
         self._step += 1
 
         return loss

@@ -166,7 +166,7 @@ def momentum_step(optimizer):
                 continue
 
             d_p = p.grad.data
-            d_p.add_(p.data, alpha=weight_decay)
+            #d_p.add_(p.data, alpha=weight_decay)
 
             param_state = optimizer.state[p]
 
@@ -174,7 +174,7 @@ def momentum_step(optimizer):
                 param_state['momentum_buffer'] = torch.zeros_like(p)
             d_p = param_state['momentum_buffer'].mul_(momentum).add_(d_p)
 
-            # p.data.mul_(1-step_size*weight_decay)
+            p.data.mul_(1-step_size*weight_decay)
             p.data.add_(d_p, alpha=-step_size)
 
 
