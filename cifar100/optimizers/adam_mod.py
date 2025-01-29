@@ -79,7 +79,7 @@ class AdaNorm(Optimizer):
                 v_hat = v / (1 - beta2 ** t)
 
                 #v = m_hat / (torch.sqrt(v_hat) + eps)
-                v = m_hat / v_hat + eps)
+                v = m_hat / (v_hat + eps)
 
                 if layer.bias is not None:
                     v = [v[:, :-1], v[:, -1:]]
