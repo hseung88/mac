@@ -303,6 +303,9 @@ def update_step(optimizer):
                     continue
                 state = optimizer.state[p]
 
+                if weight_decay != 0:
+                    p.data.add_(p.data, alpha=-lr * weight_decay)
+
                 # Initialize state if not present
                 if 'exp_avg' not in state:
                     state['exp_avg'] = torch.zeros_like(p.data)
@@ -329,6 +332,3 @@ def update_step(optimizer):
                 denom = exp_avg_sq.sqrt().add_(eps)
                 p.data.addcdiv_(exp_avg, denom, value=-step_size)
 
-                # Apply weight decay (if any) after Adam update
-                if weight_decay != 0:
-                    p.data.add_(p.data, alpha=-lr * weight_decay)
