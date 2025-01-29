@@ -172,7 +172,7 @@ class MAC(Optimizer):
                 else:
                     layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
 
-        momentum_step(self)
+        nag_step(self)
         self._step += 1
 
         return loss
