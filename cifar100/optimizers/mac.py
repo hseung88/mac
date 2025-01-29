@@ -83,12 +83,6 @@ class MAC(Optimizer):
         self.first_layer = first_layer
         eye_matrix = torch.eye(cov_mat.size(0), device=device, dtype=cov_mat.dtype)
         self.input_cov_inv = torch.linalg.inv(cov_mat + self.damping * eye_matrix)
-        # self.input_cov_inv = torch.cholesky_inverse(torch.linalg.cholesky(cov_mat + self.damping * eye_matrix))
-        # eye_matrix = torch.eye(cov_mat.size(0), device=cov_mat.device, dtype=cov_mat.dtype)
-        # cov_mat_damped = cov_mat + self.damping * eye_matrix
-        # L = torch.linalg.cholesky(cov_mat_damped)
-        # I_for_solve = torch.eye(L.size(0), device=L.device, dtype=L.dtype)
-        # self.sqrt_input_cov_inv = torch.linalg.solve_triangular(L, I_for_solve, upper=False)
         self.model = net
         self.layer_map[first_layer]['fwd_hook'].remove()
 
@@ -122,11 +116,14 @@ class MAC(Optimizer):
             actv = torch.cat([actv, ones], dim=1)
 
         avg_actv = actv.mean(0)
+        std_actv = actv.std(0)
 
         state = self.state[module]
         if 'exp_avg' not in state:
             state['exp_avg'] = torch.zeros_like(avg_actv, device=avg_actv.device)
+            state['exp_avg_std'] = torch.zeros_like(avg_actv, device=avg_actv.device)
         state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
+        state['exp_avg_std'].mul_(stat_decay).add_(std_actv, alpha=1 - stat_decay)
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -153,12 +150,16 @@ class MAC(Optimizer):
                         exp_avg = state['exp_avg'].div(bias_correction)
                         sq_norm = torch.linalg.norm(exp_avg).pow(2)
 
+                        exp_avg_std = state['exp_avg_std'].div(bias_correction)
+                        sq_norm_std = torch.linalg.norm(exp_avg_std).pow(2)
+
                         if 'A_inv' not in state:
                             state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device)
                         else:
                             state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device))
 
                         state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
+                        state['A_inv'].sub_(torch.outer(exp_avg_std, exp_avg_std).div_(damping + sq_norm_std))
                         #state['A_inv'].div_(damping)
 
                     A_inv = state['A_inv']
