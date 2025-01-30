@@ -28,7 +28,6 @@ from optimizers.eva import Eva
 from optimizers.nysact_mod import NysAct_G, NysAct_S
 from optimizers.shaper import Shaper
 from optimizers.soap import SOAP
-from optimizers.adam_mod import AdaNorm
 
 
 def get_parser():
@@ -40,7 +39,7 @@ def get_parser():
     parser.add_argument('--optim', default='sgd', type=str, help='optimizer',
                         choices=['sgd', 'adam', 'adamw', 'adan', 'kfac', 'foof', 'adaact', 'shaper',
                                  'mac', 'smac', 'sgdhess', 'adahessian', 'eva', 'nysact_g', 'nysact_s',
-                                 'soap', 'mac2', 'macfosi', 'adanorm'
+                                 'soap', 'mac2', 'macfosi'
                                 ])
     parser.add_argument('--run', default=0, type=int, help='number of runs')
     parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
@@ -55,8 +54,7 @@ def get_parser():
     parser.add_argument('--damping', default=0.01, type=float, help='damping factor for kfac and foof')
     parser.add_argument('--tcov', default=5, type=int, help='preconditioner update period for kfac and foof')
     parser.add_argument('--tinv', default=50, type=int, help='preconditioner inverse period for kfac and foof')
-    parser.add_argument('--lr_scale', default=100, type=int, help='scale lr of preconditioned SGD')
-    parser.add_argument('--projection', action='store_true', help='gradient subspace projection')
+    parser.add_argument('--alpha', default=1.0, type=float, help='scale lr of preconditioned SGD')
     parser.add_argument('--update', default=1, type=int, help='preconditioner update and inverse period')
     parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
     parser.add_argument('--batchsize', type=int, default=128, help='batch size')
@@ -95,7 +93,7 @@ def build_dataset(args):
 
 
 def get_ckpt_name(model='resnet', optimizer='sgd', lr=0.1, momentum=0.9, stat_decay=0.9,
-                  beta1=0.9, beta2=0.999, eps=1e-8, weight_decay=5e-4, rank=5, projection=True, lr_scale=100,
+                  beta1=0.9, beta2=0.999, eps=1e-8, weight_decay=5e-4, rank=5, alpha=1,
                   damping=0.01, tcov=5, tinv=50, update=1, batchsize=128,
                   epoch=200, run=0, lr_scheduler='cosine'):
     name = {
@@ -120,8 +118,8 @@ def get_ckpt_name(model='resnet', optimizer='sgd', lr=0.1, momentum=0.9, stat_de
         #    epoch, run),
         'mac2': 'lr{}-momentum{}-stat_decay{}-damping{}-wdecay{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
             lr, momentum, stat_decay, damping, weight_decay, tcov, tinv, lr_scheduler, batchsize, epoch, run),
-        'macfosi': 'lr{}-momentum{}-stat_decay{}-betas{}-{}-damping{}-wdecay{}-eps{}-tcov{}-tinv{}-lrscale{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
-            lr, momentum, stat_decay, beta1, beta2, damping, weight_decay, eps, tcov, tinv, lr_scale, lr_scheduler, batchsize, epoch, run),
+        'macfosi': 'lr{}-momentum{}-stat_decay{}-betas{}-{}-eps{}-damping{}-wdecay{}-tcov{}-tinv{}-alpha{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
+            lr, momentum, stat_decay, beta1, beta2, eps, damping, weight_decay, tcov, tinv, alpha, lr_scheduler, batchsize, epoch, run),
         'smac': 'lr{}-momentum{}-stat_decay{}-damping{}-wdecay{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
             lr, momentum, stat_decay, damping, weight_decay, tcov, tinv, lr_scheduler, batchsize, epoch, run),
         'sgdhess': 'lr{}-momentum{}-wdecay{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
@@ -215,7 +213,7 @@ def create_optimizer(args, model_params):
     elif args.optim == 'macfosi':
         return MACFOSI(model_params, lr=args.lr, momentum=args.momentum, stat_decay=args.stat_decay,
                        beta1=args.beta1, beta2=args.beta2, eps=args.eps, damping=args.damping,
-                       weight_decay=args.weight_decay, Tcov=args.tcov, Tinv=args.tinv, lr_scale=args.lr_scale)
+                       weight_decay=args.weight_decay, Tcov=args.tcov, Tinv=args.tinv, alpha=args.alpha)
     elif args.optim == 'smac':
         return SMAC(model_params, args.lr, args.momentum, stat_decay=args.stat_decay, 
                          damping=args.damping, weight_decay=args.weight_decay, Tcov=args.tcov, Tinv=args.tinv)
@@ -307,14 +305,11 @@ def main():
     train_loader, test_loader = build_dataset(args)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    ckpt_name = get_ckpt_name(model=args.model, optimizer=args.optim, lr=args.lr,
-                              momentum=args.momentum, stat_decay=args.stat_decay,
-                              beta1=args.beta1, beta2=args.beta2,
-                              eps = args.eps, run=args.run,
-                              weight_decay = args.weight_decay,
-                              damping=args.damping, tcov=args.tcov, tinv=args.tinv, lr_scale=args.lr_scale,
-                              rank=args.rank, epoch=args.epoch, batchsize=args.batchsize,
-                              update=args.update, lr_scheduler=args.lr_scheduler, projection=args.projection,
+    ckpt_name = get_ckpt_name(model=args.model, optimizer=args.optim, lr=args.lr, momentum=args.momentum,
+                              stat_decay=args.stat_decay, beta1=args.beta1, beta2=args.beta2, eps=args.eps,
+                              weight_decay=args.weight_decay, damping=args.damping, tcov=args.tcov, tinv=args.tinv,
+                              alpha=args.alpha, rank=args.rank, update=args.update, epoch=args.epoch,
+                              batchsize=args.batchsize, lr_scheduler=args.lr_scheduler, run=args.run,
                               )
     print('ckpt_name:', ckpt_name)
     if args.resume:
@@ -341,7 +336,7 @@ def main():
     optimizer = create_optimizer(args, net.parameters())
     
     #if args.optim in ['foof', 'adaact', 'nysact', 'shaper', 'kfac']:
-    if args.optim in ['foof', 'adaact', 'nysact_g', 'nysact_s', 'shaper',  'macfosi', 'adanorm']:
+    if args.optim in ['foof', 'adaact', 'nysact_g', 'nysact_s', 'shaper',  'macfosi']:
         optimizer.model = net
     elif args.optim in ['mac', 'smac', 'mac2']:
         optimizer._configure(train_loader, net, device)
