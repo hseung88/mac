@@ -166,7 +166,7 @@ class MACFOSI(Optimizer):
                 adam_step_proj = adam_step @ project_mat
 
                 # Combine MAC + base (Adam) update
-                v = mac_direction + adam_step_proj
+                v = adam_step_proj - mac_direction
 
                 if layer.bias is not None:
                     v = [v[:, :-1], v[:, -1:]]
