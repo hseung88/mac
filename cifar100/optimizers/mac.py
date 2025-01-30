@@ -151,7 +151,7 @@ class MAC(Optimizer):
                         if 'A_inv' not in state:
                             state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device)
 
-                        inv_prev = state['A_inv'].copy()
+                        inv_prev = state['A_inv'].clone()
                         #state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device))
 
                         #inv_a = torch.matmul(state['A_inv'], exp_avg)
