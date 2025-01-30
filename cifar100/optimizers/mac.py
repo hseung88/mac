@@ -115,7 +115,7 @@ class MAC(Optimizer):
             ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)
             actv = torch.cat([actv, ones], dim=1)
 
-        avg_actv = actv.mean(0) * actv.size(0).sqrt()
+        avg_actv = actv.mean(0) * torch.sqrt(actv.size(0))
 
         state = self.state[module]
         if 'exp_avg' not in state:
