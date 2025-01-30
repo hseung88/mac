@@ -116,18 +116,18 @@ class MAC(Optimizer):
             actv = torch.cat([actv, ones], dim=1)
 
         avg_actv = actv.mean(0)
-        # normalize
-        avg_actv /= torch.linalg.norm(avg_actv)
-        # top eigenvalue
+        avg_actv_norm = avg_actv / torch.linalg.norm(avg_actv)
         A = actv.t() @ actv / actv.size(0)
-        eigenval = torch.dot(avg_actv, A @ avg_actv)
+        eigenval = torch.dot(avg_actv_norm, A @ avg_actv_norm)
+        residual = A - eigenval * torch.outer(avg_actv_norm, avg_actv_norm)
+        res = residual.mean(0)
 
         state = self.state[module]
         if 'exp_avg' not in state:
             state['exp_avg'] = torch.zeros_like(avg_actv, device=avg_actv.device)
-            state['eigenval'] = torch.zeros_like(eigenval, device=eigenval.device)
+            state['exp_avg_res'] = torch.zeros_like(res, device=res.device)
         state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
-        state['eigenval'].mul_(stat_decay).add_(eigenval, alpha=1 - stat_decay)
+        state['exp_avg_res'].mul_(stat_decay).add_(res, alpha=1 - stat_decay)
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -153,15 +153,17 @@ class MAC(Optimizer):
                     if b_updated:
                         bias_correction = 1.0 - (stat_decay ** self.emastep)
                         exp_avg = state['exp_avg'].div(bias_correction)
-                        eigenval = state['eigenval'].div(bias_correction)
+                        res = state['exp_avg_res'].div(bias_correction)
                         sq_norm = torch.linalg.norm(exp_avg).pow(2)
+                        sq_norm_res = torch.linalg.norm(res).pow(2)
 
                         if 'A_inv' not in state:
                             state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device)
                         else:
                             state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device))
 
-                        state['A_inv'].sub_((eigenval * torch.outer(exp_avg, exp_avg)).div_(damping + eigenval * sq_norm))
+                        state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
+                        state['A_inv'].sub_(torch.outer(res, res).div_(damping + sq_norm_res))
                         #state['A_inv'].div_(damping)
 
                     A_inv = state['A_inv']
