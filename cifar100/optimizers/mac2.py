@@ -116,9 +116,8 @@ class MAC2(Optimizer):
             actv = torch.cat([actv, ones], dim=1)
 
         mean_actv = actv.mean(0)
-        #A = torch.matmul(actv.t(), actv) / actv.size(0)
-        #diag_actv_cov = torch.diag(A)
-        diag_actv_cov = torch.sum(actv * actv, dim=0) / actv.size(0) - mean_actv ** 2
+        #diag_actv_cov = torch.sum(actv * actv, dim=0) / actv.size(0)
+        diag_actv_cov = torch.var(a, dim=0, unbiased=True)
 
         state = self.state[module]
         if 'exp_avg_actv' not in state:
