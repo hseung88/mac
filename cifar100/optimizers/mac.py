@@ -115,7 +115,7 @@ class MAC(Optimizer):
             ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)
             actv = torch.cat([actv, ones], dim=1)
 
-        avg_actv = actv.mean(0) * math.sqrt(actv.size(0))
+        avg_actv = actv.mean(0)
 
         state = self.state[module]
         if 'exp_avg' not in state:
@@ -153,7 +153,8 @@ class MAC(Optimizer):
                         else:
                             state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device))
 
-                        state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
+                        state['A_inv'].sub_(exp_avg.size(0) * torch.outer(exp_avg, exp_avg))
+                        state['A_inv'].div_(damping + exp_avg.size(0) * sq_norm))
                         #state['A_inv'].div_(damping)
 
                     A_inv = state['A_inv']
