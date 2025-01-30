@@ -120,7 +120,7 @@ class MAC(Optimizer):
         avg_actv /= torch.linalg.norm(avg_actv)
         # top eigenvalue
         A = actv.t() @ actv / actv.size(0)
-        eigenval = torch.matmul(torch.matmul(avg_actv.t(), A), avg_actv)
+        eigenval = torch.dot(avg_actv, A @ avg_actv)
 
         state = self.state[module]
         if 'exp_avg' not in state:
