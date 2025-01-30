@@ -116,9 +116,8 @@ class MAC(Optimizer):
             actv = torch.cat([actv, ones], dim=1)
 
         avg_actv = actv.mean(0)
-        A = actv.t() @ actv / actv.size(0)
-        residual = A @ (torch.eye(avg_actv.size(0), device=avg_actv.device, dtype=avg_actv.dtype).sub_(
-            torch.outer(avg_actv, avg_actv)))
+        eye_matrix = torch.eye(avg_actv.size(0), device=avg_actv.device, dtype=avg_actv.dtype)
+        residual = actv @ (eye_matrix.sub_(torch.outer(avg_actv, avg_actv)))
         res = residual.mean(0)
 
         state = self.state[module]
