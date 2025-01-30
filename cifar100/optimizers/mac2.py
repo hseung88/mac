@@ -112,7 +112,7 @@ class MAC2(Optimizer):
                 actv = actv.view(-1, actv.size(-1))
 
         if module.bias is not None:
-            ones = torch.ones((actv.size(0), 1))
+            ones = torch.ones((actv.size(0), 1), device=actv.device)
             actv = torch.cat([actv, ones], dim=1)
 
         mean_actv = actv.mean(0)
@@ -121,8 +121,8 @@ class MAC2(Optimizer):
 
         state = self.state[module]
         if 'exp_avg_actv' not in state:
-            state['exp_avg_mean_actv'] = torch.zeros_like(mean_actv)
-            state['exp_avg_diag_cov'] = torch.zeros_like(diag_actv_cov)
+            state['exp_avg_mean_actv'] = torch.zeros_like(mean_actv, device=actv.device, dtype=actv.dtype)
+            state['exp_avg_diag_cov'] = torch.zeros_like(diag_actv_cov, device=actv.device, dtype=actv.dtype)
         state['exp_avg_mean_actv'].mul_(stat_decay).add_(mean_actv, alpha=1 - stat_decay)
         state['exp_avg_diag_cov'].mul_(stat_decay).add_(diag_actv_cov, alpha=1 - stat_decay)
 
