@@ -115,9 +115,13 @@ class MAC2(Optimizer):
             ones = torch.ones((actv.size(0), 1), device=actv.device)
             actv = torch.cat([actv, ones], dim=1)
 
-        mean_actv = actv.mean(0)
+        top_eigv = actv.mean(0)
+        A = torch.matmul(actv.t(), actv) / actv.size(0)
+        top_eigval = torch.dot(top_eigv, torch.matmul(A, top_eigv)) / torch.linalg.norm(top_eigv).pow(2)
+        deflation = A.sub_(top_eigval * torch.outer(top_eigv, top_eigv))
+        sec_top_eigv = deflation
         #diag_actv_cov = torch.sum(actv * actv, dim=0) / actv.size(0)
-        diag_actv_cov = torch.var(actv, dim=0, unbiased=True)
+        #diag_actv_cov = torch.var(actv, dim=0, unbiased=True)
 
         state = self.state[module]
         if 'exp_avg_actv' not in state:
