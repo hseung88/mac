@@ -154,7 +154,7 @@ class MAC(Optimizer):
                             state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device))
 
                         state['A_inv'].sub_(exp_avg.size(0) * torch.outer(exp_avg, exp_avg))
-                        state['A_inv'].div_(damping + exp_avg.size(0) * sq_norm))
+                        state['A_inv'].div_(damping + exp_avg.size(0) * sq_norm)
                         #state['A_inv'].div_(damping)
 
                     A_inv = state['A_inv']
