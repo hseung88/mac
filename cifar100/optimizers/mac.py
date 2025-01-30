@@ -142,26 +142,29 @@ class MAC(Optimizer):
 
                 if layer == self.first_layer:
                     A_inv = self.input_cov_inv
+
+                    v = grad_mat @ A_inv
                 else:
+                    if 'A_inv' not in state:
+                        state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device)
+                    v0 = grad_mat @ state['A_inv']
+
                     if b_updated:
                         bias_correction = 1.0 - (stat_decay ** self.emastep)
                         exp_avg = state['exp_avg'].div(bias_correction)
-                        #sq_norm = torch.linalg.norm(exp_avg).pow(2)
+                        sq_norm = torch.linalg.norm(exp_avg).pow(2)
 
-                        if 'A_inv' not in state:
-                            state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device)
-                        #else:
-                        #    state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device))
+                        state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device))
 
-                        inv_a = torch.matmul(state['A_inv'], exp_avg)
-                        state['A_inv'].sub_(torch.outer(inv_a, inv_a).div_(1.0 + torch.dot(exp_avg, inv_a)))
+                        #inv_a = torch.matmul(state['A_inv'], exp_avg)
+                        #state['A_inv'].sub_(torch.outer(inv_a, inv_a).div_(1.0 + torch.dot(exp_avg, inv_a)))
 
-                        #state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
+                        state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
                         #state['A_inv'].div_(damping)
 
                     A_inv = state['A_inv']
 
-                v = grad_mat @ A_inv
+                    v = (grad_mat @ A_inv).sub_(grad_mat).add_(v0)
 
                 if layer.bias is not None:
                     v = [v[:, :-1], v[:, -1:]]
