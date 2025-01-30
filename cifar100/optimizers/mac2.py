@@ -11,12 +11,11 @@ class MAC2(Optimizer):
     def __init__(
             self,
             params,
-            lr=0.001,
-            beta1=0.9,
-            beta2=0.999,
-            eps=1e-8,
-            damping=1.0,
-            weight_decay=0.01,
+            lr=0.1,
+            momentum=0.9,
+            stat_decay=0.95,
+            damping=1e-8,
+            weight_decay=0.0001,
             Tcov=5,
             Tinv=50,
     ):
@@ -26,9 +25,8 @@ class MAC2(Optimizer):
             raise ValueError(f"Invalid weight_decay value: {weight_decay}")
 
         defaults = dict(lr=lr,
-                        beta1=beta1,
-                        beta2=beta2,
-                        eps=eps,
+                        momentum=momentum,
+                        stat_decay=stat_decay,
                         weight_decay=weight_decay)
         super().__init__(params, defaults)
 
@@ -50,6 +48,44 @@ class MAC2(Optimizer):
         self._model = model
         self.layer_map = build_layer_map(model, fwd_hook_fn=self._capture_activation)
 
+    def _configure(self, train_loader, net, device):
+        n_batches = len(train_loader)
+        cov_mat = None
+
+        # Handle the case when the model is wrapped in DistributedDataParallel
+        # if hasattr(net, 'module'):
+        #    net = net.module
+
+        _, first_layer = next(trainable_modules(net))
+
+        # Directly capture the first layer (patch embedding) of ViTs
+        # first_layer = net.patch_embed.proj
+
+        with torch.no_grad():
+            for images, _ in train_loader:
+                images = images.to(device, non_blocking=True)
+                actv = extract_patches(images, first_layer.kernel_size,
+                                       first_layer.stride, first_layer.padding,
+                                       depthwise=False)
+                if first_layer.bias is not None:
+                    ones = actv.new_ones((actv.shape[0], 1))
+                    actv = torch.cat([actv, ones], dim=1)
+
+                # A = torch.einsum('ij,jk->ik', actv.t(), actv) / actv.size(0)  # Optimized matrix multiplication
+                A = torch.matmul(actv.t(), actv) / actv.size(0)
+                if cov_mat is None:
+                    cov_mat = A
+                else:
+                    cov_mat.add_(A)
+
+            cov_mat /= n_batches
+
+        self.first_layer = first_layer
+        eye_matrix = torch.eye(cov_mat.size(0), device=device, dtype=cov_mat.dtype)
+        self.input_cov_inv = torch.linalg.inv(cov_mat + self.damping * eye_matrix)
+        self.model = net
+        self.layer_map[first_layer]['fwd_hook'].remove()
+
     def _capture_activation(
             self,
             module: nn.Module,
@@ -65,7 +101,7 @@ class MAC2(Optimizer):
         self.emastep += 1
 
         group = self.param_groups[0]
-        #beta2 = group['beta2']
+        stat_decay = group['stat_decay']
 
         actv = forward_input[0].data
         if isinstance(module, nn.Conv2d):
@@ -76,22 +112,19 @@ class MAC2(Optimizer):
                 actv = actv.view(-1, actv.size(-1))
 
         if module.bias is not None:
-            ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)
+            ones = torch.ones((actv.size(0), 1))
             actv = torch.cat([actv, ones], dim=1)
 
         mean_actv = actv.mean(0)
-        #var_actv = torch.mean(actv.pow(2), axis=0)
-        #var_actv = actv.var(dim=0, unbiased=True)
-        var_actv = actv.var(dim=0)
+        A = torch.matmul(actv.t(), actv) / actv.size(0)
+        diag_actv_cov = torch.diag(A)
 
         state = self.state[module]
-        #if 'exp_avg_actv' not in state:
-        #    state['exp_avg_mean'] = torch.zeros_like(mean_actv, device=mean_actv.device)
-        #    state['exp_avg_var'] = torch.zeros_like(var_actv, device=var_actv.device)
-        #state['exp_avg_mean'].mul_(beta2).add_(mean_actv, alpha=1 - beta2)
-        #state['exp_avg_var'].mul_(beta2).add_(var_actv, alpha=1 - beta2)
-        state['exp_avg_mean'] = mean_actv
-        state['exp_avg_var'] = var_actv
+        if 'exp_avg_actv' not in state:
+            state['exp_avg_mean_actv'] = torch.zeros_like(mean_actv)
+            state['exp_avg_diag_cov'] = torch.zeros_like(diag_actv_cov)
+        state['exp_avg_mean_actv'].mul_(stat_decay).add_(mean_actv, alpha=1 - stat_decay)
+        state['exp_avg_diag_cov'].mul_(stat_decay).add_(diag_actv_cov, alpha=1 - stat_decay)
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -101,29 +134,32 @@ class MAC2(Optimizer):
                 loss = closure()
 
         group = self.param_groups[0]
-        lr = group['lr']
+        stat_decay = group['stat_decay']
         damping = self.damping
         b_updated = (self._step % self.Tinv == 0)
 
-        # Preconditioned SGD step
         for layer in self.layer_map:
             if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
                 state = self.state[layer]
                 grad_mat = reshape_grad(layer)
 
-                if b_updated:
-                    exp_avg_mean = state['exp_avg_mean']
-                    exp_avg_var = state['exp_avg_var']
+                if layer == self.first_layer:
+                    A_inv = self.input_cov_inv
+                else:
+                    if b_updated:
+                        bias_correction = 1.0 - (stat_decay ** self.emastep)
+                        exp_avg_mean_actv = state['exp_avg_mean_actv'].div(bias_correction)
+                        exp_avg_diag_cov = state['exp_avg_diag_cov'].div(bias_correction).add(damping)
 
-                    exp_avg_var += damping
-                    m_div_v = exp_avg_mean / exp_avg_var
-                    denominator = 1.0 + exp_avg_mean.dot(m_div_v)
-                    correction = torch.outer(m_div_v, m_div_v) / denominator
+                        inverse_diag_cov = 1.0 / exp_avg_diag_cov
+                        d_inv_a = inverse_diag_cov.mul(exp_avg_mean_actv)
+                        denom = 1.0 + torch.dot(exp_avg_mean_actv, d_inv_a)
 
-                    state['A_inv'] = torch.diag(1.0 / exp_avg_var)
-                    state['A_inv'].sub_(correction)
+                        state['A_inv'] = torch.diag(inverse_diag_cov)
+                        state['A_inv'].sub_(torch.outer(d_inv_a, d_inv_a).div_(denom))
 
-                A_inv = state['A_inv']
+                    A_inv = state['A_inv']
+
                 v = grad_mat @ A_inv
 
                 if layer.bias is not None:

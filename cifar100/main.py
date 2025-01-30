@@ -118,8 +118,8 @@ def get_ckpt_name(model='resnet', optimizer='sgd', lr=0.1, momentum=0.9, stat_de
         #'mac': 'lr{}-betas{}-{}-stat_decay{}-damping{}-wdecay{}-eps{}-tcov{}-tinv{}-projection{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
         #    lr, beta1, beta2, stat_decay, damping, weight_decay, eps, tcov, tinv, projection, lr_scheduler, batchsize,
         #    epoch, run),
-        'mac2': 'lr{}-betas{}-{}-damping{}-wdecay{}-eps{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
-            lr, beta1, beta2, damping, weight_decay, eps, tcov, tinv, lr_scheduler, batchsize, epoch, run),
+        'mac2': 'lr{}-momentum{}-stat_decay{}-damping{}-wdecay{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
+            lr, momentum, stat_decay, damping, weight_decay, tcov, tinv, lr_scheduler, batchsize, epoch, run),
         'macfosi': 'lr{}-momentum{}-stat_decay{}-betas{}-{}-damping{}-wdecay{}-eps{}-tcov{}-tinv{}-lrscale{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
             lr, momentum, stat_decay, beta1, beta2, damping, weight_decay, eps, tcov, tinv, lr_scale, lr_scheduler, batchsize, epoch, run),
         'smac': 'lr{}-momentum{}-stat_decay{}-damping{}-wdecay{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
@@ -210,8 +210,8 @@ def create_optimizer(args, model_params):
     #    return MAC(model_params, args.lr, beta1=args.beta1, beta2=args.beta2, stat_decay=args.stat_decay, eps=args.eps,
     #               damping=args.damping, weight_decay=args.weight_decay, Tcov=args.tcov, Tinv=args.tinv)
     elif args.optim == 'mac2':
-        return MAC2(model_params, lr=args.lr, beta1=args.beta1, beta2=args.beta2, eps=args.eps,
-                   damping=args.damping, weight_decay=args.weight_decay, Tcov=args.tcov, Tinv=args.tinv)
+        return MAC2(model_params, lr=args.lr, momentum=args.momentum, stat_decay=args.stat_decay, damping=args.damping,
+                    weight_decay=args.weight_decay, Tcov=args.tcov, Tinv=args.tinv)
     elif args.optim == 'macfosi':
         return MACFOSI(model_params, lr=args.lr, momentum=args.momentum, stat_decay=args.stat_decay,
                        beta1=args.beta1, beta2=args.beta2, eps=args.eps, damping=args.damping,
@@ -341,9 +341,9 @@ def main():
     optimizer = create_optimizer(args, net.parameters())
     
     #if args.optim in ['foof', 'adaact', 'nysact', 'shaper', 'kfac']:
-    if args.optim in ['foof', 'adaact', 'nysact_g', 'nysact_s', 'shaper', 'mac2', 'macfosi', 'adanorm']:
+    if args.optim in ['foof', 'adaact', 'nysact_g', 'nysact_s', 'shaper',  'macfosi', 'adanorm']:
         optimizer.model = net
-    elif args.optim in ['mac','smac']:
+    elif args.optim in ['mac', 'smac', 'mac2']:
         optimizer._configure(train_loader, net, device)
 
     preconditioner = None
