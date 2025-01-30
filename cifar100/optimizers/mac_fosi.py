@@ -104,7 +104,6 @@ class MACFOSI(Optimizer):
                 loss = closure()
 
         group = self.param_groups[0]
-        lr = group['lr']
         momentum = group['momentum']
         stat_decay = group['stat_decay']
         beta1 = group['beta1']
@@ -157,7 +156,7 @@ class MACFOSI(Optimizer):
 
                 bias_correction1 = 1.0 - beta1 ** state['_step']
                 bias_correction2 = 1.0 - beta2 ** state['_step']
-                step_size = (lr * math.sqrt(bias_correction2) / bias_correction1)
+                step_size = math.sqrt(bias_correction2) / bias_correction1
 
                 denom = exp_avg_sq.sqrt().add_(eps)
                 adam_step = exp_avg / denom * step_size
@@ -166,7 +165,7 @@ class MACFOSI(Optimizer):
                 adam_step_proj = adam_step @ project_mat
 
                 # Combine MAC + base (Adam) update
-                v = adam_step_proj - mac_direction
+                v = adam_step_proj + mac_direction
 
                 if layer.bias is not None:
                     v = [v[:, :-1], v[:, -1:]]
