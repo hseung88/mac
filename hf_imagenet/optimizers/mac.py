@@ -17,7 +17,7 @@ class MAC(Optimizer):
             damping=1e-8,
             weight_decay=5e-4,
             Tcov=5,
-            Tinv=50,
+            Tinv=100,
     ):
         if lr < 0.0:
             raise ValueError(f"Invalid learning rate: {lr}")
@@ -117,7 +117,7 @@ class MAC(Optimizer):
             # Compute the mean and variance along the last dimension (features)
             mean = actv.mean(dim=-1, keepdim=True)
             var = actv.var(dim=-1, unbiased=False, keepdim=True)
-            actv = (actv - mean) / torch.sqrt(var + module.eps)
+            actv = (actv - mean) / torch.sqrt(var + self.damping)
 
         if isinstance(module, (nn.Conv2d, nn.Linear)) and module.bias is not None:
             ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)
