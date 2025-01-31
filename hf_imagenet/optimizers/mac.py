@@ -110,8 +110,16 @@ class MAC(Optimizer):
         elif isinstance(module, nn.Linear):
             if actv.ndim > 2:  # linear layers in transformers
                 actv = actv.view(-1, actv.size(-1))
+        elif isinstance(module, nn.LayerNorm):
+            if actv.ndim > 2:
+                actv = actv.view(-1, actv.size(-1))
+            # Standardize the inputs to mimic the behavior of LayerNorm's internal normalization.
+            # Compute the mean and variance along the last dimension (features)
+            mean = actv.mean(dim=-1, keepdim=True)
+            var = actv.var(dim=-1, unbiased=False, keepdim=True)
+            actv = (actv - mean) / torch.sqrt(var + module.eps)
 
-        if module.bias is not None:
+        if isinstance(module, (nn.Conv2d, nn.Linear)) and module.bias is not None:
             ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)
             actv = torch.cat([actv, ones], dim=1)
 
@@ -135,7 +143,7 @@ class MAC(Optimizer):
         b_updated = (self._step % self.Tinv == 0)
 
         for layer in self.layer_map:
-            if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
+            if isinstance(layer, (nn.Linear, nn.Conv2d, nn.LayerNorm)) and layer.weight.grad is not None:
                 state = self.state[layer]
                 grad_mat = reshape_grad(layer)
 
@@ -157,16 +165,19 @@ class MAC(Optimizer):
 
                     A_inv = state['A_inv']
 
-                v = grad_mat @ A_inv
+                if isinstance(layer, (nn.Linear, nn.Conv2d)):
+                    v = grad_mat @ A_inv
+                else:
+                    v = A_inv @ grad_mat
 
-                if layer.bias is not None:
+                if isinstance(layer, (nn.Conv2d, nn.Linear)) and layer.bias is not None:
                     v = [v[:, :-1], v[:, -1:]]
                     layer.weight.grad.data.copy_(v[0].view_as(layer.weight))
                     layer.bias.grad.data.copy_(v[1].view_as(layer.bias))
                 else:
                     layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
 
-        momentum_step(self)
+        nag_step(self)
         self._step += 1
 
         return loss

@@ -58,7 +58,7 @@ def reshape_grad(layer):
         grad_mat = g
 
     # include the bias into the weight
-    if hasattr(layer, 'bias') and layer.bias is not None:
+    if classname !='LayerNorm' and hasattr(layer, 'bias') and layer.bias is not None:
         grad_mat = torch.cat([grad_mat, layer.bias.grad.view(-1, 1)], 1)
 
     return grad_mat
@@ -118,7 +118,7 @@ def grad_layers(module, memo=None, prefix=''):
 
 
 def build_layer_map(model, fwd_hook_fn=None, bwd_hook_fn=None,
-                    supported_layers=(nn.Linear, nn.Conv2d)):
+                    supported_layers=(nn.Linear, nn.Conv2d, nn.LayerNorm)):
     layer_map = {}
 
     for layer, prefix, params in grad_layers(model):
@@ -189,7 +189,7 @@ def nag_step(optimizer):
                 continue
 
             d_p = p.grad.data
-            d_p.add_(p.data, alpha=weight_decay)
+            #d_p.add_(p.data, alpha=weight_decay)
 
             param_state = optimizer.state[p]
             if 'momentum_buff' not in param_state:
