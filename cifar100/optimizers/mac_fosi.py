@@ -122,7 +122,7 @@ class MACFOSI(Optimizer):
                 bias_correction = 1.0 - (stat_decay ** self.emastep)
                 exp_avg_actv = state['exp_avg_actv'] / bias_correction
 
-                #project_mat1 = torch.outer(exp_avg_actv, exp_avg_actv)
+                project_mat1 = torch.outer(exp_avg_actv, exp_avg_actv)
                 #grad_mat_proj1 = grad_mat @ project_mat1
 
                 if b_updated:
