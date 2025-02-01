@@ -143,18 +143,18 @@ class MACFOSI(Optimizer):
                 # Base optimizer (Adam) step
                 eye_matrix = torch.eye(grad_mat.size(1), device=grad_mat.device, dtype=grad_mat.dtype)
                 project_mat2 = eye_matrix - project_mat1
-                grad_mat_proj = grad_mat @ project_mat2
+                grad_mat_proj2 = grad_mat @ project_mat2
 
                 if 'exp_avg' not in state:
-                    state['exp_avg'] = torch.zeros_like(grad_mat_proj, device=grad_mat_proj.device)
-                    state['exp_avg_sq'] = torch.zeros_like(grad_mat_proj, device=grad_mat_proj.device)
+                    state['exp_avg'] = torch.zeros_like(grad_mat_proj2, device=grad_mat_proj2.device)
+                    state['exp_avg_sq'] = torch.zeros_like(grad_mat_proj2, device=grad_mat_proj2.device)
                     state['_step'] = 0
 
                 exp_avg, exp_avg_sq = state['exp_avg'], state['exp_avg_sq']
                 state['_step'] += 1
 
-                exp_avg.mul_(beta1).add_(grad_mat_proj, alpha=1 - beta1)
-                exp_avg_sq.mul_(beta2).addcmul_(grad_mat_proj, grad_mat_proj, value=1 - beta2)
+                exp_avg.mul_(beta1).add_(grad_mat_proj2, alpha=1 - beta1)
+                exp_avg_sq.mul_(beta2).addcmul_(grad_mat_proj2, grad_mat_proj2, value=1 - beta2)
 
                 bias_correction1 = 1.0 - beta1 ** state['_step']
                 bias_correction2 = 1.0 - beta2 ** state['_step']
@@ -164,7 +164,7 @@ class MACFOSI(Optimizer):
                 adam_step = exp_avg / denom * step_size
 
                 # Ensure the final Adam step remains in the subspace
-                adam_step_proj = adam_step @ project_mat
+                adam_step_proj = adam_step @ project_mat2
 
                 # Combine MAC + base (Adam) update
                 v = adam_step_proj + mac_direction
