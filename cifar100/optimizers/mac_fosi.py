@@ -119,9 +119,11 @@ class MACFOSI(Optimizer):
 
                 # MAC step
                 grad_mat = reshape_grad(layer)
-
                 bias_correction = 1.0 - (stat_decay ** self.emastep)
                 exp_avg_actv = state['exp_avg_actv'] / bias_correction
+
+                project_mat1 = torch.outer(exp_avg_actv, exp_avg_actv)
+                grad_mat_proj1 = grad_mat @ project_mat1
 
                 if b_updated:
                     sq_norm = torch.linalg.norm(exp_avg_actv).pow(2)
@@ -130,7 +132,7 @@ class MACFOSI(Optimizer):
                     state['A_inv'].mul_(sq_norm).div_(sq_norm + damping)
 
                 A_inv = state['A_inv']
-                d1 = grad_mat @ A_inv
+                d1 = grad_mat_proj1 - grad_mat_proj1 @ A_inv
 
                 if 'momentum_buffer' not in state:
                     state['momentum_buffer'] = torch.zeros_like(d1)
@@ -140,8 +142,8 @@ class MACFOSI(Optimizer):
 
                 # Base optimizer (Adam) step
                 eye_matrix = torch.eye(grad_mat.size(1), device=grad_mat.device, dtype=grad_mat.dtype)
-                project_mat = eye_matrix - torch.outer(exp_avg_actv, exp_avg_actv)
-                grad_mat_proj = grad_mat @ project_mat
+                project_mat2 = eye_matrix - project_mat1
+                grad_mat_proj = grad_mat @ project_mat2
 
                 if 'exp_avg' not in state:
                     state['exp_avg'] = torch.zeros_like(grad_mat_proj, device=grad_mat_proj.device)
