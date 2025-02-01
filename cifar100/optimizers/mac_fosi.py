@@ -134,11 +134,16 @@ class MACFOSI(Optimizer):
                 A_inv = state['A_inv']
                 d1 = grad_mat_proj1 - grad_mat_proj1 @ A_inv
 
-                if 'momentum_buffer' not in state:
-                    state['momentum_buffer'] = torch.zeros_like(d1)
-                state['momentum_buffer'].mul_(momentum).add_(d1)
-                ### FOSI CHANGE: Add an alpha factor for scaling MAC step
-                mac_direction = self.alpha * state['momentum_buffer']
+                #if 'momentum_buffer' not in state:
+                #    state['momentum_buffer'] = torch.zeros_like(d1)
+                #state['momentum_buffer'].mul_(momentum).add_(d1)
+                #### FOSI CHANGE: Add an alpha factor for scaling MAC step
+                #mac_direction = self.alpha * state['momentum_buffer']
+
+                if 'exp_avg_precond' not in state:
+                    state['exp_avg_precond'] = torch.zeros_like(d1, device=d1.device)
+                state['exp_avg_precond'].mul_(beta1).add_(d1, alpha = 1 - beta1)
+                mac_direction  = self.alpha * state['exp_avg_precond']
 
                 # Base optimizer (Adam) step
                 eye_matrix = torch.eye(grad_mat.size(1), device=grad_mat.device, dtype=grad_mat.dtype)
