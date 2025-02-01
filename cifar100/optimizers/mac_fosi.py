@@ -122,8 +122,8 @@ class MACFOSI(Optimizer):
                 bias_correction = 1.0 - (stat_decay ** self.emastep)
                 exp_avg_actv = state['exp_avg_actv'] / bias_correction
 
-                project_mat1 = torch.outer(exp_avg_actv, exp_avg_actv)
-                grad_mat_proj1 = grad_mat @ project_mat1
+                #project_mat1 = torch.outer(exp_avg_actv, exp_avg_actv)
+                #grad_mat_proj1 = grad_mat @ project_mat1
 
                 if b_updated:
                     sq_norm = torch.linalg.norm(exp_avg_actv).pow(2)
@@ -132,7 +132,8 @@ class MACFOSI(Optimizer):
                     state['A_inv'].mul_(sq_norm).div_(sq_norm + damping)
 
                 A_inv = state['A_inv']
-                d1 = grad_mat_proj1 - grad_mat_proj1 @ A_inv
+                #d1 = grad_mat_proj1 - grad_mat_proj1 @ A_inv
+                d1 = grad_mat @ A_inv
 
                 #if 'momentum_buffer' not in state:
                 #    state['momentum_buffer'] = torch.zeros_like(d1)
