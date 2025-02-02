@@ -98,11 +98,11 @@ class AdaTensor(Optimizer):
                         ]
                     dims_to_reduce = state['dims_to_reduce']
 
-                    #grad_sq = grad.pow(2)
+                    grad_sq = grad.pow(2)
                     # Loop over each mode (dimension).
                     for i in range(dim):
-                        #agg = grad_sq.mean(dim=dims_to_reduce[i])
-                        agg = grad.mean(dim=dims_to_reduce[i])
+                        agg = grad_sq.mean(dim=dims_to_reduce[i])
+                        #agg = grad.mean(dim=dims_to_reduce[i])
                         accs[i].mul_(beta2).add_(agg, alpha=1 - beta2)
 
                     # Bias-correct the accumulators.
@@ -116,8 +116,7 @@ class AdaTensor(Optimizer):
                         shape[i] = corrected_accs[i].shape[0]
                         acc_i = corrected_accs[i].view(*shape)
                         precond = acc_i if precond is None else precond * acc_i
-                    #precond = precond.pow(1.0 / (2 * dim))
-                    precond = precond.pow(1.0 / dim)
+                    precond = precond.pow(1.0 / (2 * dim))
 
                     # ---------- Compute the Update ----------
                     update = m_hat / (precond + eps)
