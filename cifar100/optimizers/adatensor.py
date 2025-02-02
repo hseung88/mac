@@ -101,7 +101,7 @@ class AdaTensor(Optimizer):
                 update = m_hat / (c_hat + eps)
 
                 # Update the parameter.
-                p.data.add_(-lr, update)
+                p.data.add_(update, alpha=-lr)
 
         return loss
 
