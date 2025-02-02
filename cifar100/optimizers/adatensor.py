@@ -111,7 +111,7 @@ class AdaRobustCurv(Optimizer):
                 update = m_hat / (curvature + eps)
 
                 # Update parameter.
-                p.data.add_(-lr, update)
+                p.data.add_(update, alpha=-lr)
 
         return loss
 
