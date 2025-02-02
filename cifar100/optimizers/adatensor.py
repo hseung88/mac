@@ -40,7 +40,7 @@ class AdaTensor(Optimizer):
 
     def __init__(self, params, lr=1e-3, beta1=0.9, beta2=0.99, eps=1e-8, weight_decay=0):
         defaults = dict(lr=lr, beta1=beta1, beta2=beta2, eps=eps, weight_decay=weight_decay)
-        super(AdaCurv, self).__init__(params, defaults)
+        super().__init__(params, defaults)
 
     def step(self, closure=None):
         """Performs a single optimization step."""
