@@ -28,7 +28,7 @@ from optimizers.eva import Eva
 from optimizers.nysact_mod import NysAct_G, NysAct_S
 from optimizers.shaper import Shaper
 from optimizers.soap import SOAP
-from optimizers.adatensor import AdaTensor
+from optimizers.adatensor import AdaRobustCurv
 
 
 def get_parser():
@@ -106,8 +106,8 @@ def get_ckpt_name(model='resnet', optimizer='sgd', lr=0.1, momentum=0.9, stat_de
             lr, beta1, beta2, weight_decay, eps, lr_scheduler, batchsize, epoch, run),
         'adamw': 'lr{}-betas{}-{}-wdecay{}-eps{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
             lr, beta1, beta2, weight_decay, eps, lr_scheduler, batchsize, epoch, run),
-        'adatensor': 'lr{}-betas{}-{}-wdecay{}-eps{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
-            lr, beta1, beta2, weight_decay, eps, lr_scheduler, batchsize, epoch, run),
+        'adatensor': 'lr{}-betas{}-{}-alpha{}-wdecay{}-eps{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
+            lr, beta1, beta2, alpha, weight_decay, eps, lr_scheduler, batchsize, epoch, run),
         #'kfac': 'lr{}-momentum{}-stat_decay{}-damping{}-wdecay{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
         #    lr, momentum, stat_decay, damping, weight_decay, tcov, tinv, lr_scheduler, batchsize, epoch, run),
         'foof': 'lr{}-momentum{}-stat_decay{}-damping{}-wdecay{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
@@ -196,7 +196,7 @@ def create_optimizer(args, model_params):
         return AdamW(model_params, args.lr, betas=(args.beta1, args.beta2),
                           weight_decay=args.weight_decay, eps=args.eps)
     elif args.optim == 'adatensor':
-        return AdaTensor(model_params, args.lr, beta1=args.beta1, beta2=args.beta2,
+        return AdaRobustCurv(model_params, args.lr, beta1=args.beta1, beta2=args.beta2, alpha=args.alpha,
                      weight_decay=args.weight_decay, eps=args.eps)
     #elif args.optim == 'kfac':
     #    return KFAC(model_params, args.lr, momentum=args.momentum, stat_decay=args.stat_decay,
