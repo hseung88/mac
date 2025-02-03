@@ -109,9 +109,9 @@ class AdaTensor(Optimizer):
                     # Scaling in the orthogonal subspace.
                     inv_scale_orth = 1.0
                     # Scaling in the direction of v.
-                    inv_scale_v = (norm_v2 + eps) ** (-1.0 / k)
+                    inv_scale_v = (norm_v2 + eps) ** (-1.0 / 2.0 * k)
                     diff_scale = inv_scale_orth - inv_scale_v
-                    norm_v2_safe = norm_v2 if norm_v2 > 1e-4 else 1e-4
+                    norm_v2_safe = norm_v2 if norm_v2 > 1e-8 else 1e-8
                     d = p.shape[i]
                     I = torch.eye(d, device=p.device, dtype=p.dtype)
                     outer = (v.unsqueeze(1) @ v.unsqueeze(0)) / norm_v2_safe
