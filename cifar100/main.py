@@ -107,8 +107,8 @@ def get_ckpt_name(model='resnet', optimizer='sgd', lr=0.1, momentum=0.9, stat_de
             lr, beta1, beta2, weight_decay, eps, lr_scheduler, batchsize, epoch, run),
         'adamw': 'lr{}-betas{}-{}-wdecay{}-eps{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
             lr, beta1, beta2, weight_decay, eps, lr_scheduler, batchsize, epoch, run),
-        'fdadam': 'lr{}-betas{}-{}-{}-wdecay{}-alpha{}-eps{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
-            lr, beta1, beta2, stat_decay, weight_decay, alpha, eps, lr_scheduler, batchsize, epoch, run),
+        'fdadam': 'lr{}-betas{}-{}-wdecay{}-eps{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
+            lr, beta1, beta2, weight_decay, eps, lr_scheduler, batchsize, epoch, run),
         #'kfac': 'lr{}-momentum{}-stat_decay{}-damping{}-wdecay{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
         #    lr, momentum, stat_decay, damping, weight_decay, tcov, tinv, lr_scheduler, batchsize, epoch, run),
         'foof': 'lr{}-momentum{}-stat_decay{}-damping{}-wdecay{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
@@ -197,8 +197,8 @@ def create_optimizer(args, model_params):
         return AdamW(model_params, args.lr, betas=(args.beta1, args.beta2),
                           weight_decay=args.weight_decay, eps=args.eps)
     elif args.optim == 'fdadam':
-        return FDAdam(model_params, args.lr, betas=(args.beta1, args.beta2), curvature_beta=args.stat_decay,
-                     weight_decay=args.weight_decay, eps=args.eps, alpha=args.alpha)
+        return FDAdam(model_params, args.lr, betas=(args.beta1, args.beta2),
+                     weight_decay=args.weight_decay, eps=args.eps)
     #elif args.optim == 'kfac':
     #    return KFAC(model_params, args.lr, momentum=args.momentum, stat_decay=args.stat_decay,
     #                  weight_decay=args.weight_decay, damping=args.damping, Tcov=args.tcov, Tinv=args.tinv)

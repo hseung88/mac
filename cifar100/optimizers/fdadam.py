@@ -24,22 +24,16 @@ class FDAdam(Optimizer):
         weight_decay (float, optional): weight decay (L2 penalty) (default: 0)
     """
 
-    def __init__(self, params, lr=1e-3, betas=(0.9, 0.999),
-                 curvature_beta=0.9, alpha=1e-1, eps=1e-8, eps_fd=1e-8,
-                 weight_decay=0):
+    def __init__(self, params, lr=1e-3, betas=(0.9, 0.95),
+                 eps=1e-8, weight_decay=0):
         if not 0.0 <= lr:
             raise ValueError("Invalid learning rate: {}".format(lr))
         if not 0.0 <= eps:
             raise ValueError("Invalid eps value: {}".format(eps))
         if not 0.0 <= weight_decay:
             raise ValueError("Invalid weight_decay value: {}".format(weight_decay))
-        if not 0.0 <= alpha:
-            raise ValueError("Invalid alpha value: {}".format(alpha))
-        if not 0.0 <= curvature_beta < 1.0:
-            raise ValueError("Invalid curvature_beta value: {}".format(curvature_beta))
 
-        defaults = dict(lr=lr, betas=betas, curvature_beta=curvature_beta,
-                        alpha=alpha, eps=eps, weight_decay=weight_decay)
+        defaults = dict(lr=lr, betas=betas, eps=eps, weight_decay=weight_decay)
         super(FDAdam, self).__init__(params, defaults)
 
     def __setstate__(self, state):
@@ -63,8 +57,6 @@ class FDAdam(Optimizer):
         for group in self.param_groups:
             lr = group['lr']
             beta1, beta2 = group['betas']
-            curvature_beta = group['curvature_beta']
-            alpha = group['alpha']
             eps = group['eps']
             weight_decay = group['weight_decay']
 
@@ -85,7 +77,7 @@ class FDAdam(Optimizer):
                     # Exponential moving average of gradient (for momentum, if desired)
                     state['exp_avg'] = torch.zeros_like(p.data)
                     # Exponential moving average of squared gradient (AdamW-style second moment)
-                    state['exp_avg_sq'] = torch.zeros_like(p.data)
+                    #state['exp_avg_sq'] = torch.zeros_like(p.data)
                     # Exponential moving average of the finite-difference curvature estimate
                     state['exp_avg_curv'] = torch.zeros_like(p.data)
                     # Store previous gradient for finite-difference curvature computation
@@ -94,7 +86,7 @@ class FDAdam(Optimizer):
                     state['prev_param'] = p.data.clone()
 
                 exp_avg = state['exp_avg']
-                exp_avg_sq = state['exp_avg_sq']
+                #exp_avg_sq = state['exp_avg_sq']
                 exp_avg_curv = state['exp_avg_curv']
                 prev_grad = state['prev_grad']
                 prev_param = state['prev_param']
@@ -107,7 +99,7 @@ class FDAdam(Optimizer):
 
                 # Update exponential moving averages for grad and squared grad
                 exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
-                exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
+                #exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
 
                 # Compute finite-difference curvature estimate elementwise.
                 # We compute: curvature_est = |grad - prev_grad| / (|p - prev_param| + eps_fd)
@@ -116,11 +108,10 @@ class FDAdam(Optimizer):
                 curvature_est = diff_grad / (diff_param + eps)
 
                 # Update exponential moving average of curvature
-                exp_avg_curv.mul_(curvature_beta).add_(curvature_est, alpha=1 - curvature_beta)
+                exp_avg_curv.mul_(beta2).add_(curvature_est, alpha=1 - beta2)
 
                 # Combine squared gradient and curvature estimate into effective second moment
                 #effective_second_moment = exp_avg_sq + alpha * exp_avg_curv
-                effective_second_moment = exp_avg_curv
 
                 # Compute bias corrections (optional, similar to Adam)
                 bias_correction1 = 1 - beta1 ** state['step']
@@ -129,7 +120,7 @@ class FDAdam(Optimizer):
                 # Compute the adaptive step. Here we use the standard AdamW update rule,
                 # replacing exp_avg_sq with effective_second_moment.
                 #denom = (effective_second_moment.sqrt() / math.sqrt(bias_correction2)).add_(eps)
-                denom = (effective_second_moment / bias_correction2).add_(eps)
+                denom = (exp_avg_curv.sqrt() / math.sqrt(bias_correction2)).add_(eps)
                 step_size = lr / bias_correction1
 
                 # Parameter update
@@ -146,7 +137,7 @@ class FDAdam(Optimizer):
 if __name__ == "__main__":
     # Simple test model
     model = torch.nn.Linear(10, 1)
-    optimizer = FDAdam(model.parameters(), lr=1e-3, alpha=1e-1, weight_decay=1e-2)
+    optimizer = FDAdam(model.parameters(), lr=1e-3, weight_decay=1e-2)
     loss_fn = torch.nn.MSELoss()
 
     # Dummy data
