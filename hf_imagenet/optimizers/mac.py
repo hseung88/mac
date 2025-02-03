@@ -13,11 +13,11 @@ class MAC(Optimizer):
             params,
             lr=0.1,
             momentum=0.9,
-            stat_decay=0.0,
-            damping=1e-8,
+            stat_decay=0.95,
+            damping=0.1,
             weight_decay=5e-4,
             Tcov=5,
-            Tinv=5,
+            Tinv=100,
     ):
         if lr < 0.0:
             raise ValueError(f"Invalid learning rate: {lr}")
@@ -115,9 +115,9 @@ class MAC(Optimizer):
                     sq_norm = torch.linalg.norm(exp_avg).pow(2)
 
                     if 'A_inv' not in state:
-                        state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device)
+                        state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype)
                     else:
-                        state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device))
+                        state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype))
 
                     state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
                     #state['A_inv'].div_(damping)
