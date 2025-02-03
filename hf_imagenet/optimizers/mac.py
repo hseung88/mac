@@ -77,9 +77,9 @@ class MAC(Optimizer):
                 actv = actv.view(-1, actv.size(-1))
             # Standardize the inputs to mimic the behavior of LayerNorm's internal normalization.
             # Compute the mean and variance along the last dimension (features)
-            #mean = actv.mean(dim=-1, keepdim=True)
-            #var = actv.var(dim=-1, unbiased=False, keepdim=True)
-            #actv = (actv - mean) / torch.sqrt(var + self.damping)
+            mean = actv.mean(dim=-1, keepdim=True)
+            var = actv.var(dim=-1, unbiased=False, keepdim=True)
+            actv = (actv - mean) / torch.sqrt(var + self.damping)
 
         if isinstance(module, (nn.Conv2d, nn.Linear)) and module.bias is not None:
             ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)
@@ -126,13 +126,26 @@ class MAC(Optimizer):
 
                 if isinstance(layer, (nn.Linear, nn.Conv2d)):
                     v = grad_mat @ A_inv
-                else:
-                    v = A_inv @ grad_mat
+                #else:
+                #    v = A_inv @ grad_mat
 
-                if isinstance(layer, (nn.Conv2d, nn.Linear)) and layer.bias is not None:
+                if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.bias is not None:
+                    # For Linear/Conv2d, we previously concatenated bias into grad_mat.
                     v = [v[:, :-1], v[:, -1:]]
                     layer.weight.grad.data.copy_(v[0].view_as(layer.weight))
                     layer.bias.grad.data.copy_(v[1].view_as(layer.bias))
+                elif isinstance(layer, nn.LayerNorm) and layer.bias is not None:
+                    # For LayerNorm, weight and bias are separate 1D parameters.
+                    # Compute preconditioning separately on each.
+                    # Make sure the preconditioning matrix A_inv has shape (n, n) where n == layer.weight.shape[0].
+                    # Compute update for weight:
+                    weight_grad = layer.weight.grad.data
+                    precond_weight = A_inv @ weight_grad
+                    layer.weight.grad.data.copy_(precond_weight.view_as(weight_grad))
+                    # Compute update for bias:
+                    bias_grad = layer.bias.grad.data
+                    precond_bias = A_inv @ bias_grad
+                    layer.bias.grad.data.copy_(precond_bias.view_as(bias_grad))
                 else:
                     layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
 
