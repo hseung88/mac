@@ -13,11 +13,11 @@ class MAC(Optimizer):
             params,
             lr=0.1,
             momentum=0.9,
-            stat_decay=0.95,
+            stat_decay=0.0,
             damping=1e-8,
             weight_decay=5e-4,
             Tcov=5,
-            Tinv=200,
+            Tinv=5,
     ):
         if lr < 0.0:
             raise ValueError(f"Invalid learning rate: {lr}")
@@ -48,44 +48,6 @@ class MAC(Optimizer):
         self._model = model
         self.layer_map = build_layer_map(model, fwd_hook_fn=self._capture_activation)
 
-    def _configure(self, train_loader, net, device):
-        n_batches = len(train_loader)
-        cov_mat = None
-
-        # Handle the case when the model is wrapped in DistributedDataParallel
-        if hasattr(net, 'module'):
-           net = net.module
-
-        #_, first_layer = next(trainable_modules(net))
-
-        # Directly capture the first layer (patch embedding) of ViTs
-        first_layer = net.patch_embed.proj
-
-        with torch.no_grad():
-            for images, _ in train_loader:
-                images = images.to(device, non_blocking=True)
-                actv = extract_patches(images, first_layer.kernel_size,
-                                       first_layer.stride, first_layer.padding,
-                                       depthwise=False)
-                if first_layer.bias is not None:
-                    ones = actv.new_ones((actv.shape[0], 1))
-                    actv = torch.cat([actv, ones], dim=1)
-
-                # A = torch.einsum('ij,jk->ik', actv.t(), actv) / actv.size(0)  # Optimized matrix multiplication
-                A = torch.matmul(actv.t(), actv) / actv.size(0)
-                if cov_mat is None:
-                    cov_mat = A
-                else:
-                    cov_mat.add_(A)
-
-            cov_mat /= n_batches
-
-        self.first_layer = first_layer
-        eye_matrix = torch.eye(cov_mat.size(0), device=device, dtype=cov_mat.dtype)
-        self.input_cov_inv = torch.linalg.inv(cov_mat + self.damping * eye_matrix)
-        self.model = net
-        self.layer_map[first_layer]['fwd_hook'].remove()
-
     def _capture_activation(
             self,
             module: nn.Module,
@@ -115,9 +77,9 @@ class MAC(Optimizer):
                 actv = actv.view(-1, actv.size(-1))
             # Standardize the inputs to mimic the behavior of LayerNorm's internal normalization.
             # Compute the mean and variance along the last dimension (features)
-            mean = actv.mean(dim=-1, keepdim=True)
-            var = actv.var(dim=-1, unbiased=False, keepdim=True)
-            actv = (actv - mean) / torch.sqrt(var + self.damping)
+            #mean = actv.mean(dim=-1, keepdim=True)
+            #var = actv.var(dim=-1, unbiased=False, keepdim=True)
+            #actv = (actv - mean) / torch.sqrt(var + self.damping)
 
         if isinstance(module, (nn.Conv2d, nn.Linear)) and module.bias is not None:
             ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)

@@ -357,6 +357,7 @@ def create_optimizer_v2(
         optimizer = optim.SGD(parameters, momentum=momentum, nesterov=True, **opt_args)
     elif opt_lower == 'mac':
         optimizer = MAC(parameters, **opt_args)
+        optimizer.model = model_or_params
     elif opt_lower == 'smac':
         optimizer = SMAC(parameters, **opt_args) 
     elif opt_lower == 'nysact':
