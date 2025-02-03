@@ -116,8 +116,7 @@ class MAC(Optimizer):
             actv = torch.cat([actv, ones], dim=1)
 
         avg_actv = actv.mean(dim=0)
-        #v = avg_actv / avg_actv.norm()
-        v = avg_actv
+        v = avg_actv / avg_actv.norm()
         # Compute actv @ v, which gives a column vector (b,) that we unsqueeze to (b,1)
         proj_coeff = actv @ v  # shape: (b,)
         # Broadcast multiplication to subtract the projection on v from each row of actv.
