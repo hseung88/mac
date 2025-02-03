@@ -119,7 +119,7 @@ class MAC(Optimizer):
         #v = avg_actv / avg_actv.norm()
         #I = torch.eye(v.size(0), device=actv.device)
         #P = I - torch.ger(v, v)
-        actv_proj = torch.matmul(actv, avg_actv) @ avg_actv.t()
+        actv_proj = (actv @ avg_actv) @ avg_actv.t()
         avg_actv_proj = avg_actv - actv_proj.mean(0)
 
         state = self.state[module]
