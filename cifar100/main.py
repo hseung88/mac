@@ -41,7 +41,7 @@ def get_parser():
     parser.add_argument('--optim', default='sgd', type=str, help='optimizer',
                         choices=['sgd', 'adam', 'adamw', 'adan', 'kfac', 'foof', 'adaact', 'shaper',
                                  'mac', 'smac', 'sgdhess', 'adahessian', 'eva', 'nysact_g', 'nysact_s',
-                                 'soap', 'mac2', 'macfosi', 'rota'
+                                 'soap', 'mac2', 'macfosi', 'pmadam'
                                 ])
     parser.add_argument('--run', default=0, type=int, help='number of runs')
     parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
