@@ -13,11 +13,11 @@ class MAC(Optimizer):
             params,
             lr=0.1,
             momentum=0.9,
-            stat_decay=0.95,
+            stat_decay=0.99,
             damping=1e-8,
             weight_decay=5e-4,
-            Tcov=5,
-            Tinv=50,
+            Tcov=1,
+            Tinv=1,
     ):
         if lr < 0.0:
             raise ValueError(f"Invalid learning rate: {lr}")
@@ -77,15 +77,16 @@ class MAC(Optimizer):
                 actv = actv.view(-1, actv.size(-1))
             # Standardize the inputs to mimic the behavior of LayerNorm's internal normalization.
             # Compute the mean and variance along the last dimension (features)
-            mean = actv.mean(dim=-1, keepdim=True)
-            var = actv.var(dim=-1, unbiased=False, keepdim=True)
-            actv = (actv - mean) / torch.sqrt(var + self.damping)
+            #mean = actv.mean(dim=-1, keepdim=True)
+            #var = actv.var(dim=-1, unbiased=False, keepdim=True)
+            #actv = (actv - mean) / torch.sqrt(var + self.damping)
 
         if isinstance(module, (nn.Conv2d, nn.Linear)) and module.bias is not None:
             ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)
             actv = torch.cat([actv, ones], dim=1)
 
         avg_actv = actv.mean(0)
+        avg_actv += actv.pow(2).mean(0)
 
         state = self.state[module]
         if 'exp_avg' not in state:
