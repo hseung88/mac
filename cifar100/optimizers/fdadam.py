@@ -119,7 +119,8 @@ class FDAdam(Optimizer):
                 exp_avg_curv.mul_(curvature_beta).add_(curvature_est, alpha=1 - curvature_beta)
 
                 # Combine squared gradient and curvature estimate into effective second moment
-                effective_second_moment = exp_avg_sq + alpha * exp_avg_curv
+                #effective_second_moment = exp_avg_sq + alpha * exp_avg_curv
+                effective_second_moment = exp_avg_curv
 
                 # Compute bias corrections (optional, similar to Adam)
                 bias_correction1 = 1 - beta1 ** state['step']
