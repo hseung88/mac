@@ -103,8 +103,8 @@ class FDAdam(Optimizer):
 
                 # Compute finite-difference curvature estimate elementwise.
                 # We compute: curvature_est = |grad - prev_grad| / (|p - prev_param| + eps_fd)
-                diff_grad = (grad - prev_grad)#.abs_()
-                diff_param = (p.data - prev_param)#.abs_()
+                diff_grad = (grad - prev_grad).abs_()
+                diff_param = (p.data - prev_param).abs_()
                 curvature_est = diff_grad / (diff_param) # + eps)
 
                 # Update exponential moving average of curvature
