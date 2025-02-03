@@ -12,7 +12,6 @@ import os
 import argparse
 import time
 
-from cifar100.optimizers.adatensor import AdaTensor
 from models import *
 from torch.optim import Adam, SGD, AdamW
 #from optimizers.kfac import KFAC
