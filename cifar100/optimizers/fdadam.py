@@ -78,7 +78,7 @@ class PerModeAdam(Optimizer):
 
                 # Optionally apply decoupled weight decay.
                 if weight_decay != 0:
-                    grad = grad.add(p.data, alpha=weight_decay)
+                    p.data.mul_(1-step_size*weight_decay)
 
                 state = self.state[p]
                 # State initialization.
