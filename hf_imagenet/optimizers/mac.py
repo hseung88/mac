@@ -122,7 +122,7 @@ class MAC(Optimizer):
                     state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
                     #state['A_inv'].div_(damping)
 
-                A_inv = state['A_inv']
+                A_inv = state['A_inv'].to(grad_mat.dtype)
 
                 if isinstance(layer, (nn.Linear, nn.Conv2d)):
                     v = grad_mat @ A_inv
