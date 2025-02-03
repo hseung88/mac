@@ -128,7 +128,8 @@ class FDAdam(Optimizer):
 
                 # Compute the adaptive step. Here we use the standard AdamW update rule,
                 # replacing exp_avg_sq with effective_second_moment.
-                denom = (effective_second_moment.sqrt() / math.sqrt(bias_correction2)).add_(eps)
+                #denom = (effective_second_moment.sqrt() / math.sqrt(bias_correction2)).add_(eps)
+                denom = (effective_second_moment / bias_correction2).add_(eps)
                 step_size = lr / bias_correction1
 
                 # Parameter update
