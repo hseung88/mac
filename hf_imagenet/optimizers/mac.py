@@ -109,23 +109,20 @@ class MAC(Optimizer):
                 state = self.state[layer]
                 grad_mat = reshape_grad(layer)
 
-                if layer == self.first_layer:
-                    A_inv = self.input_cov_inv
-                else:
-                    if b_updated:
-                        bias_correction = 1.0 - (stat_decay ** self.emastep)
-                        exp_avg = state['exp_avg'].div(bias_correction)
-                        sq_norm = torch.linalg.norm(exp_avg).pow(2)
+                if b_updated:
+                    bias_correction = 1.0 - (stat_decay ** self.emastep)
+                    exp_avg = state['exp_avg'].div(bias_correction)
+                    sq_norm = torch.linalg.norm(exp_avg).pow(2)
 
-                        if 'A_inv' not in state:
-                            state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device)
-                        else:
-                            state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device))
+                    if 'A_inv' not in state:
+                        state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device)
+                    else:
+                        state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device))
 
-                        state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
-                        #state['A_inv'].div_(damping)
+                    state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
+                    #state['A_inv'].div_(damping)
 
-                    A_inv = state['A_inv']
+                A_inv = state['A_inv']
 
                 if isinstance(layer, (nn.Linear, nn.Conv2d)):
                     v = grad_mat @ A_inv
