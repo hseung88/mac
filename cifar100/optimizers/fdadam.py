@@ -3,49 +3,48 @@ from torch.optim.optimizer import Optimizer
 import math
 
 
-class ROTA(Optimizer):
-    r"""Implements an optimizer that uses EMA on both the gradient and a rank-1
-    curvature approximation computed from mode-wise means of the gradient.
+class PerModeAdam(Optimizer):
+    r"""Implements a per-mode adaptive optimizer.
 
-    For each parameter tensor T of shape (d₁, d₂, ..., dₙ):
-      1. Compute the per-mode means:
-             μ^(i) = mean(grad, over all dims except i)
-         (if there is no dimension to average over, use the tensor directly)
-      2. Form a rank-1 tensor:
-             R = μ^(1) ⊗ μ^(2) ⊗ ... ⊗ μ^(n)
-      3. Maintain an EMA of the gradient (exp_avg) and an EMA of R (exp_avg_rank1)
-      4. Update using:
-             p ← p - lr * (exp_avg / (sqrt(exp_avg_rank1) + eps))
+    For each parameter tensor \(p\) of shape \((d_1,d_2,\dots,d_N)\), we maintain
+    a separate EMA of the squared gradient along each mode:
+
+    For each mode \(i\) (0-indexed),
+
+      v^{(i)}_t = β * v^{(i)}_{t-1} + (1-β) * mean(g², over all dims except i)
+
+    Then, the effective variance for each coordinate is computed as the geometric mean:
+
+      v_eff(i_1, ..., i_N) = ∏_{i=1}^N [v^{(i)}[i_i]]^(1/N)
+
+    The parameter update is then given by:
+
+      p ← p - lr * g / (sqrt(v_eff) + eps)
 
     Arguments:
-        params (iterable): iterable of parameters to optimize or dicts defining
-            parameter groups.
+        params (iterable): iterable of parameters to optimize or dicts defining parameter groups.
         lr (float): learning rate.
-        beta1 (float): coefficient used for computing running average of gradients (default: 0.9)
-        beta2 (float): coefficient used for computing running average of rank-1 tensor (default: 0.99)
-        eps (float): term added to the denominator for numerical stability (default: 1e-8)
-        weight_decay (float): weight decay (L2 penalty) (default: 0)
+        beta (float): coefficient for computing running averages (default: 0.99).
+        eps (float): term added to the denominator for numerical stability (default: 1e-8).
+        weight_decay (float): weight decay (L2 penalty) (default: 0).
     """
 
-    def __init__(self, params, lr=1e-3, beta1=0.9, beta2=0.99, eps=1e-8, weight_decay=0):
+    def __init__(self, params, lr=1e-3, beta=0.99, eps=1e-8, weight_decay=0):
         if lr < 0.0:
             raise ValueError("Invalid learning rate: {}".format(lr))
-        if not 0.0 <= beta1 < 1.0:
-            raise ValueError("Invalid beta1 value: {}".format(beta1))
-        if not 0.0 <= beta2 < 1.0:
-            raise ValueError("Invalid beta2 value: {}".format(beta2))
+        if not 0.0 <= beta < 1.0:
+            raise ValueError("Invalid beta parameter: {}".format(beta))
         if eps < 0.0:
             raise ValueError("Invalid eps value: {}".format(eps))
-        defaults = dict(lr=lr, beta1=beta1, beta2=beta2, eps=eps, weight_decay=weight_decay)
-        super(ROTA, self).__init__(params, defaults)
+        defaults = dict(lr=lr, beta=beta, eps=eps, weight_decay=weight_decay)
+        super(PerModeAdam, self).__init__(params, defaults)
 
     def __setstate__(self, state):
-        super(ROTA, self).__setstate__(state)
+        super(PerModeAdam, self).__setstate__(state)
 
     @torch.no_grad()
     def step(self, closure=None):
-        """
-        Performs a single optimization step.
+        """Performs a single optimization step.
 
         Args:
             closure (callable, optional): A closure that reevaluates the model
@@ -61,8 +60,7 @@ class ROTA(Optimizer):
 
         for group in self.param_groups:
             lr = group['lr']
-            beta1 = group['beta1']
-            beta2 = group['beta2']
+            beta = group['beta']
             eps = group['eps']
             weight_decay = group['weight_decay']
 
@@ -71,78 +69,70 @@ class ROTA(Optimizer):
                     continue
                 grad = p.grad.data
                 if grad.is_sparse:
-                    raise RuntimeError("Rank1EMAOptimizer does not support sparse gradients")
+                    raise RuntimeError("PerModeAdam does not support sparse gradients")
 
-                state = self.state[p]
-
-                # State initialization.
-                if len(state) == 0:
-                    state['step'] = 0
-                    # EMA of gradient.
-                    state['exp_avg'] = torch.zeros_like(p.data)
-                    # EMA of rank-1 curvature tensor.
-                    state['exp_avg_rank1'] = torch.zeros_like(p.data)
-
-                exp_avg = state['exp_avg']
-                exp_avg_rank1 = state['exp_avg_rank1']
-
-                state['step'] += 1
-
-                # Optionally apply decoupled weight decay.
+                # Optionally apply decoupled weight decay
                 if weight_decay != 0:
                     grad = grad.add(p.data, alpha=weight_decay)
 
-                # Update the EMA of the gradient.
-                exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
+                state = self.state[p]
+                # Initialize state for this parameter.
+                if not state:
+                    state['step'] = 0
+                    # For each mode, store a 1D tensor of EMA of squared gradients.
+                    # For a tensor of shape (d1, d2, ..., dN), we have N EMA vectors.
+                    state['v'] = []
+                    for dim, size in enumerate(p.data.shape):
+                        # Initialize with zeros for each mode.
+                        state['v'].append(torch.zeros(size, device=p.device, dtype=p.dtype))
+                state['step'] += 1
 
-                # Compute the current rank-1 tensor approximation from mode-wise means.
-                # For a tensor grad of shape (d1, d2, ..., dN):
-                #   For each mode i, compute the mean over all dimensions except i.
-                if grad.dim() == 0:
-                    cur_rank1 = grad.abs()
-                else:
-                    dims = grad.dim()
-                    cur_rank1 = None
-                    for dim in range(dims):
-                        # Compute mean over all dims except the current one.
-                        dims_to_average = tuple(i for i in range(dims) if i != dim)
-                        # If dims_to_average is empty (e.g. for a 1D tensor), use grad directly.
-                        if len(dims_to_average) == 0:
-                            mode_mean = grad
-                        else:
-                            mode_mean = grad.mean(dim=dims_to_average, keepdim=False)
-                        # Reshape for broadcasting: shape becomes [1,...,d, ...,1]
-                        shape_expanded = [1] * dims
-                        # Here, mode_mean should be 1D. For safety, ensure it has a dimension.
-                        if mode_mean.dim() == 0:
-                            mode_mean = mode_mean.unsqueeze(0)
-                        else:
-                            mode_mean = mode_mean.view(-1)
-                        shape_expanded[dim] = mode_mean.shape[0]
-                        mode_mean = mode_mean.view(*shape_expanded)
-                        if cur_rank1 is None:
-                            cur_rank1 = mode_mean
-                        else:
-                            cur_rank1 = cur_rank1 * mode_mean  # elementwise product via broadcasting.
-                    cur_rank1 = cur_rank1.abs()
+                # Compute elementwise squared gradient.
+                grad_sq = grad.pow(2)
 
-                # Update the EMA of the rank-1 tensor.
-                exp_avg_rank1.mul_(beta2).add_(cur_rank1, alpha=1 - beta2)
+                # Update per-mode accumulators.
+                # For each mode i, compute the mean over all dimensions except i.
+                v_list = state['v']
+                dims = grad.dim()
+                for i in range(dims):
+                    # Reduce over all dimensions except i.
+                    reduce_dims = tuple(j for j in range(dims) if j != i)
+                    # If reduce_dims is empty (e.g. a 1D tensor), then grad_sq.mean() returns a scalar.
+                    # In that case, we want to use the gradient squared itself.
+                    if len(reduce_dims) > 0:
+                        mode_mean = grad_sq.mean(dim=reduce_dims)
+                    else:
+                        mode_mean = grad_sq
+                    # Update the EMA: v = β * v + (1-β) * mode_mean
+                    v_list[i].mul_(beta).add_(mode_mean, alpha=1 - beta)
 
-                # Compute the effective scaling denominator.
-                denom = exp_avg_rank1.sqrt().add_(eps)
+                # Now, combine the per-mode accumulators to form an effective variance.
+                # We use the geometric mean: effective_var = ∏_{i=1}^N (v_i)^(1/N)
+                effective_var = None
+                for i in range(dims):
+                    # Reshape v_list[i] to be broadcastable to p.data.
+                    shape = [1] * dims
+                    shape[i] = v_list[i].shape[0]
+                    v_i_expanded = v_list[i].view(*shape)
+                    if effective_var is None:
+                        effective_var = v_i_expanded.pow(1.0 / dims)
+                    else:
+                        effective_var = effective_var * v_i_expanded.pow(1.0 / dims)
 
-                # Parameter update: use the EMA of the gradient.
-                p.data.addcdiv_(exp_avg, denom, value=-lr)
+                # Compute the denominator.
+                denom = effective_var.sqrt().add_(eps)
+
+                # Update the parameter.
+                p.data.addcdiv_(grad, denom, value=-lr)
 
         return loss
 
 
 # Example usage:
 if __name__ == "__main__":
-    # Simple test model.
+    # A simple model for testing.
     model = torch.nn.Linear(10, 1)
-    optimizer = ROTA(model.parameters(), lr=1e-3, beta1=0.9, beta2=0.99, weight_decay=1e-2)
+    optimizer = PerModeAdam(model.parameters(), lr=1e-3, beta=0.99, eps=1e-8, weight_decay=1e-2)
     loss_fn = torch.nn.MSELoss()
 
     # Dummy data.
