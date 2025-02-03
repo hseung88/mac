@@ -1,132 +1,155 @@
 import torch
 from torch.optim.optimizer import Optimizer
 
-class AdaRobustCurv(Optimizer):
-    r"""Implements the AdaRobustCurv optimizer.
 
-    This optimizer is a novel elementwise method that uses a robust curvature
-    estimate to scale the effective learning rate.
+def mode_product(tensor, matrix, mode):
+    """
+    Multiply a tensor by a matrix along the specified mode.
+    This function permutes the tensor so that the given mode is first,
+    reshapes it to a 2D matrix, multiplies, and then reshapes back.
+    """
+    shape = list(tensor.shape)
+    # Permute so that the mode of interest is first.
+    perm = [mode] + [i for i in range(len(shape)) if i != mode]
+    tensor_perm = tensor.permute(perm)
+    d = shape[mode]
+    tensor_mat = tensor_perm.reshape(d, -1)
+    # Multiply.
+    product = matrix @ tensor_mat
+    # Reshape back.
+    new_shape = [matrix.shape[0]] + shape[:mode] + shape[mode + 1:]
+    result = product.reshape(new_shape)
+    # Inverse permutation to return to original order.
+    inv_perm = [perm.index(i) for i in range(len(shape))]
+    result = result.permute(inv_perm)
+    return result
 
-    For each parameter tensor \(p\), we maintain:
-      - exp_avg: the EMA of the gradient (as in AdamW).
-      - prev_grad: the previous gradient (to compute differences).
-      - exp_avg_abs_diff: EMA of the absolute difference |g_t - g_{t-1}|.
-      - exp_avg_sq_diff: EMA of the squared difference (g_t - g_{t-1})².
 
-    At each step, if a previous gradient is available, we define the per-element
-    curvature estimate as
+class AdaTensor(Optimizer):
+    r"""Tensor-level preconditioning optimizer with modewise rank-1 inverse preconditioner,
+    EMA on the preconditioners, and heavyball momentum.
 
-         c_t = (|d_t| + α * sqrt(exp_avg_sq_diff_corrected)) / (1 + α),
+    For each parameter tensor \(p \in \mathbb{R}^{d_1\times d_2 \times \cdots \times d_k}\) with \(k\ge2\),
+    the optimizer does the following for each mode \(i\):
+      - Computes the mean gradient over all dimensions except mode \(i\):
+            \(v^{(i)} = \text{mean}(G, \text{over all modes except } i)\).
+      - Forms a rank-1 approximation of the second moment:
+            \(v^{(i)}(v^{(i)})^T\).
+      - With damping, defines
+            \(P^{(i)} = v^{(i)}(v^{(i)})^T + \varepsilon I\).
+      - Computes the inverse preconditioner along mode \(i\) as
+            \(M^{(i)} = \bigl(P^{(i)}\bigr)^{-1/k}\),
+        i.e. scaling by \(1/(\|v^{(i)}\|^2+\varepsilon)^{1/k}\) along \(v^{(i)}\)
+        and \(1/\varepsilon^{1/k}\) in the orthogonal subspace.
+      - Updates an EMA of \(M^{(i)}\) using a coefficient `precond_beta`.
+      - Applies the resulting preconditioner along mode \(i\) to the gradient.
+    For parameters with fewer than 2 dimensions, it falls back to a diagonal update (AdamW–like).
 
-    where d_t = g_t - prev_grad and the squared difference accumulator is bias–corrected.
-    (You could also bias–correct the absolute accumulator; here we assume the sqrt of
-    the squared EMA is our robust RMS measure.) Then the parameter update is
-
-         p ← p − lr * ( m̂ / (c_t + eps) ),
-
-    where m̂ is the bias–corrected first moment (EMA of the gradient). Decoupled weight
-    decay is applied as in AdamW.
+    Finally, heavyball momentum is applied:
+      \[
+      v \leftarrow \mu\, v + (\text{preconditioned gradient}),
+      \]
+      \[
+      p \leftarrow p - \eta\, v.
+      \]
 
     Hyperparameters:
       - lr: learning rate.
-      - beta1: decay rate for the first moment (gradient EMA).
-      - beta2: decay rate for the difference accumulators.
-      - alpha: blending parameter for curvature estimation (nonnegative).
-      - eps: term added to the denominator for numerical stability.
+      - eps: damping constant.
       - weight_decay: decoupled weight decay.
+      - momentum: heavyball momentum coefficient.
+      - precond_beta: EMA coefficient for preconditioners.
     """
-    def __init__(self, params, lr=1e-3, beta1=0.9, beta2=0.999, alpha=0.5, eps=1e-8, weight_decay=0):
-        defaults = dict(lr=lr, beta1=beta1, beta2=beta2, alpha=alpha, eps=eps, weight_decay=weight_decay)
-        super(AdaRobustCurv, self).__init__(params, defaults)
+
+    def __init__(self, params, lr=1e-3, eps=1e-8, weight_decay=0, beta1=0.9, beta2=0.999):
+        defaults = dict(lr=lr, eps=eps, weight_decay=weight_decay, beta1=beta1, beta2=beta2)
+        super(AdaTensor, self).__init__(params, defaults)
 
     def step(self, closure=None):
-        """Performs a single optimization step."""
         loss = None
         if closure is not None:
             loss = closure()
 
         for group in self.param_groups:
-            lr     = group['lr']
-            beta1  = group['beta1']
-            beta2  = group['beta2']
-            alpha  = group['alpha']
-            eps    = group['eps']
+            lr = group['lr']
+            eps = group['eps']
             weight_decay = group['weight_decay']
+            beta1 = group['beta1']
+            beta2 = group['beta2']
 
             for p in group['params']:
                 if p.grad is None:
                     continue
+                G = p.grad.data
+                state = self.state[p]
 
-                grad = p.grad.data
-
-                # Apply decoupled weight decay (like AdamW)
+                # Apply decoupled weight decay.
                 if weight_decay != 0:
                     p.data.mul_(1 - lr * weight_decay)
 
-                state = self.state[p]
-                # State initialization
-                if len(state) == 0:
-                    state['step'] = 0
-                    state['exp_avg'] = torch.zeros_like(p.data)  # EMA of gradient
-                    state['exp_avg_abs_diff'] = torch.zeros_like(p.data)  # EMA of |g_t - g_{t-1}|
-                    state['exp_avg_sq_diff'] = torch.zeros_like(p.data)   # EMA of (g_t - g_{t-1})^2
-                    state['prev_grad'] = None
+                # Initialize heavyball momentum buffer.
+                if 'momentum_buffer' not in state:
+                    state['momentum_buffer'] = torch.zeros_like(p.data)
 
-                state['step'] += 1
-                t = state['step']
+                k = G.dim()  # number of modes (works even for 1D, where k == 1)
+                # Initialize EMA of preconditioners for each mode if not present.
+                if 'EMA_M' not in state:
+                    state['EMA_M'] = [None] * k  # One for each mode.
 
-                # Update first moment (as in AdamW)
-                exp_avg = state['exp_avg']
-                exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
-                # Bias-corrected first moment
-                bias_correction1 = 1 - beta1 ** t
-                m_hat = exp_avg / bias_correction1
+                # For each mode, compute the rank-1 inverse preconditioner and update its EMA.
+                for i in range(k):
+                    # For a 1D tensor, dims will be empty; handle that separately.
+                    dims = [j for j in range(k) if j != i]
+                    if dims:
+                        v = G.mean(dim=dims)
+                    else:
+                        v = G.clone()  # For 1D, use the entire vector.
 
-                # If previous gradient is available, compute differences; otherwise, initialize.
-                if state['prev_grad'] is None:
-                    state['prev_grad'] = grad.clone()
-                    # For the first step, set the differences to a small default value.
-                    diff = torch.zeros_like(grad)
-                else:
-                    diff = grad - state['prev_grad']
-                    state['prev_grad'] = grad.clone()
+                    norm_v2 = v.pow(2).sum()
+                    # Scaling in the orthogonal subspace.
+                    inv_scale_orth = 1.0
+                    # Scaling in the direction of v.
+                    inv_scale_v = (norm_v2 + eps) ** (-1.0 / k)
+                    diff_scale = inv_scale_orth - inv_scale_v
+                    norm_v2_safe = norm_v2 if norm_v2 > 1e-4 else 1e-4
+                    d = p.shape[i]
+                    I = torch.eye(d, device=p.device, dtype=p.dtype)
+                    outer = (v.unsqueeze(1) @ v.unsqueeze(0)) / norm_v2_safe
+                    M_i = inv_scale_orth * I - diff_scale * outer
 
-                # Update EMA of absolute difference and squared difference.
-                exp_avg_abs_diff = state['exp_avg_abs_diff']
-                exp_avg_sq_diff  = state['exp_avg_sq_diff']
-                exp_avg_abs_diff.mul_(beta2).add_(diff.abs(), alpha=1 - beta2)
-                exp_avg_sq_diff.mul_(beta2).addcmul_(diff, diff, value=1 - beta2)
+                    # Update EMA of preconditioner for mode i.
+                    if state['EMA_M'][i] is None:
+                        state['EMA_M'][i] = M_i.clone()
+                    else:
+                        state['EMA_M'][i].mul_(beta2).add_(M_i, alpha=1 - beta2)
+                    EMA_M_i = state['EMA_M'][i]
+                    # Precondition gradient along mode i.
+                    G = mode_product(G, EMA_M_i, i)
 
-                # Bias correction for the squared difference accumulator.
-                bias_correction2 = 1 - beta2 ** t
-                corrected_sq = exp_avg_sq_diff / bias_correction2
-                # Robust RMS measure of differences.
-                rms_diff = corrected_sq.sqrt()
+                # Now G is preconditioned along all modes.
+                state['momentum_buffer'].mul_(beta1).add_(G)
+                p.data.add_(state['momentum_buffer'], alpha=-lr)
 
-                # Form the curvature estimate by blending the absolute difference and its RMS.
-                # (One could also bias-correct the absolute accumulator, but here we keep it simple.)
-                curvature = (exp_avg_abs_diff + alpha * rms_diff) / (1 + alpha)
-
-                # Compute the update.
-                update = m_hat / (curvature + eps)
-
-                # Update parameter.
-                p.data.add_(update, alpha=-lr)
-
-        return loss
+            return loss
 
 # Example usage:
 if __name__ == "__main__":
     import torch.nn as nn
-    # Define a simple model.
-    model = nn.Linear(10, 1)
-    optimizer = AdaRobustCurv(model.parameters(), lr=1e-3, beta1=0.9, beta2=0.999, alpha=0.5, eps=1e-8, weight_decay=1e-4)
+    # Define a parameter tensor; this example uses a 4D tensor.
+    param = nn.Parameter(torch.randn(4, 3, 3, 3, requires_grad=True))
+    # Also try a 1D parameter.
+    param1d = nn.Parameter(torch.randn(10, requires_grad=True))
 
-    for step in range(100):
+    optimizer = AdaTensor([param, param1d],
+                                                lr=0.1, eps=1e-8,
+                                                weight_decay=0.0001,
+                                                beta1=0.9,
+                                                beta2=0.95)
+
+    for step in range(10):
         optimizer.zero_grad()
-        x = torch.randn(32, 10)
-        y = model(x)
-        loss = y.pow(2).mean()
+        # Dummy loss: sum of squares of both parameters.
+        loss = (param ** 2).sum() + (param1d ** 2).sum()
         loss.backward()
         optimizer.step()
         print(f"Step {step}, Loss: {loss.item()}")
