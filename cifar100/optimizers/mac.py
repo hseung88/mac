@@ -116,11 +116,11 @@ class MAC(Optimizer):
             actv = torch.cat([actv, ones], dim=1)
 
         avg_actv = actv.mean(0)
-        v = avg_actv / avg_actv.norm()
-        I = torch.eye(v.size(0), device=actv.device)
-        P = I - torch.ger(v, v)
-        actv_proj = actv @ P
-        avg_actv_proj = actv_proj.mean(0)
+        #v = avg_actv / avg_actv.norm()
+        #I = torch.eye(v.size(0), device=actv.device)
+        #P = I - torch.ger(v, v)
+        actv_proj = torch.matmul(actv, avg_actv) @ avg_actv.t()
+        avg_actv_proj = avg_actv - actv_proj.mean(0)
 
         state = self.state[module]
         if 'exp_avg' not in state:
