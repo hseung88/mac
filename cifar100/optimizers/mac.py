@@ -115,12 +115,14 @@ class MAC(Optimizer):
             ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)
             actv = torch.cat([actv, ones], dim=1)
 
-        avg_actv = actv.mean(0)
+        avg_actv = actv.mean(dim=0)
         #v = avg_actv / avg_actv.norm()
-        #I = torch.eye(v.size(0), device=actv.device)
-        #P = I - torch.ger(v, v)
-        actv_proj = (actv @ avg_actv) @ avg_actv.t()
-        avg_actv_proj = avg_actv - actv_proj.mean(0)
+        v = avg_actv
+        # Compute actv @ v, which gives a column vector (b,) that we unsqueeze to (b,1)
+        proj_coeff = actv @ v  # shape: (b,)
+        # Broadcast multiplication to subtract the projection on v from each row of actv.
+        actv_proj = actv - proj_coeff.unsqueeze(1) * v
+        avg_actv_proj = actv_proj.mean(dim=0)
 
         state = self.state[module]
         if 'exp_avg' not in state:
