@@ -157,23 +157,17 @@ class MAC(Optimizer):
                     if b_updated:
                         bias_correction = 1.0 - (stat_decay ** self.emastep)
                         exp_avg = state['exp_avg'].div(bias_correction)
-                        exp_avg_diag = state['exp_avg_diag'].div(bias_correction).add(damping).reciprocal()
-                        #exp_avg_proj = state['exp_avg_proj'].div(bias_correction)
-                        #sq_norm = torch.linalg.norm(exp_avg).pow(2)
-                        #sq_norm_proj = torch.linalg.norm(exp_avg_proj).pow(2)
-                        d_inv_a = exp_avg_diag * exp_avg
-                        denom = 1.0 + torch.dot(exp_avg, d_inv_a)
+                        exp_avg_diag = state['exp_avg_diag'].div(bias_correction)
+                        sq_norm = torch.linalg.norm(exp_avg).pow(2)
 
-                        #if 'A_inv' not in state:
-                        #    state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device)
-                        #else:
-                        #    state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device))
+                        if 'A_inv' not in state:
+                            state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device)
+                        else:
+                            state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device))
 
-                        state['A_inv'] = torch.diag(exp_avg_diag).sub_(torch.outer(d_inv_a, d_inv_a) / denom)
-
-                        #state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
-                        #state['A_inv'].sub_(torch.outer(exp_avg_proj, exp_avg_proj).div_(torch.sqrt(damping + sq_norm_proj)))
+                        state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
                         #state['A_inv'].div_(damping)
+                        state['A_inv'].sub_(torch.linalg.multi_dot([state['A_inv'], torch.diag(exp_avg_diag), state['A_inv']]))
 
                     A_inv = state['A_inv']
 
