@@ -85,7 +85,7 @@ class FSO(Optimizer):
                 t = state['step']
 
                 exp_avg, exp_avg_sq = state['exp_avg'], state['exp_avg_sq']
-                sq_norm = torch.linalg.norm(grad).pow(2)
+                sq_norm = grad.pow(2).sum()
                 grad.div_(damping + sq_norm)
 
                 # Update EMA of the raw gradient.
