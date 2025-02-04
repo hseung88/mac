@@ -116,7 +116,8 @@ class MAC(Optimizer):
             actv = torch.cat([actv, ones], dim=1)
 
         avg_actv = actv.mean(dim=0)
-        diag_cov = (actv ** 2).mean(dim=0) - avg_actv ** 2
+        #diag_cov = (actv ** 2).mean(dim=0) - avg_actv ** 2
+        diag_cov = actv.t() @ actv / actv.size(0) - torch.outer(avg_actv, avg_actv)
         #v = avg_actv / avg_actv.norm()
         # Compute actv @ v, which gives a column vector (b,) that we unsqueeze to (b,1)
         #proj_coeff = actv @ v  # shape: (b,)
