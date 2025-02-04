@@ -163,7 +163,7 @@ class MAC(Optimizer):
                         sq_norm = torch.linalg.norm(exp_avg).pow(2)
                         #sq_norm_proj = torch.linalg.norm(exp_avg_proj).pow(2)
                         d_inv_a = exp_avg_diag @ exp_avg
-                        denom = 1.0 + torch.dot(exp_avg, d_inv_a)
+                        denom = 1.0 + (exp_avg * d_inv_a).sum()
 
                         #if 'A_inv' not in state:
                         #    state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device)
