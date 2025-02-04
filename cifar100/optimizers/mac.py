@@ -162,7 +162,7 @@ class MAC(Optimizer):
                         #exp_avg_proj = state['exp_avg_proj'].div(bias_correction)
                         sq_norm = torch.linalg.norm(exp_avg).pow(2)
                         #sq_norm_proj = torch.linalg.norm(exp_avg_proj).pow(2)
-                        d_inv_a = exp_avg_diag*exp_avg
+                        d_inv_a = exp_avg_diag @ exp_avg
                         denom = 1.0 + torch.dot(exp_avg, d_inv_a)
 
                         #if 'A_inv' not in state:
