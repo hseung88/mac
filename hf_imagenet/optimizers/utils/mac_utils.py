@@ -118,7 +118,7 @@ def grad_layers(module, memo=None, prefix=''):
 
 
 def build_layer_map(model, fwd_hook_fn=None, bwd_hook_fn=None,
-                    supported_layers=(nn.Linear, nn.Conv2d, nn.LayerNorm)):
+                    supported_layers=(nn.Linear)):
     layer_map = {}
 
     for layer, prefix, params in grad_layers(model):
