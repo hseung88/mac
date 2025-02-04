@@ -13,7 +13,7 @@ class MAC(Optimizer):
             params,
             lr=0.1,
             momentum=0.9,
-            stat_decay=0.99,
+            stat_decay=0.95,
             damping=1e-8,
             weight_decay=5e-4,
             Tcov=5,
