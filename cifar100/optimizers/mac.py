@@ -116,7 +116,7 @@ class MAC(Optimizer):
             actv = torch.cat([actv, ones], dim=1)
 
         avg_actv = actv.mean(dim=0)
-        diag_cov = (actv ** 2).mean(dim=0) - avg_actv
+        diag_cov = (actv ** 2).mean(dim=0) - avg_actv ** 2
         #v = avg_actv / avg_actv.norm()
         # Compute actv @ v, which gives a column vector (b,) that we unsqueeze to (b,1)
         #proj_coeff = actv @ v  # shape: (b,)
@@ -157,7 +157,8 @@ class MAC(Optimizer):
                     if b_updated:
                         bias_correction = 1.0 - (stat_decay ** self.emastep)
                         exp_avg = state['exp_avg'].div(bias_correction)
-                        exp_avg_diag = state['exp_avg_diag'].div(bias_correction).reciprocal()
+                        exp_avg_diag = state['exp_avg_diag'].div(bias_correction)
+                        exp_avg_diag = 1.0 / exp_avg_diag
                         #exp_avg_proj = state['exp_avg_proj'].div(bias_correction)
                         sq_norm = torch.linalg.norm(exp_avg).pow(2)
                         #sq_norm_proj = torch.linalg.norm(exp_avg_proj).pow(2)
