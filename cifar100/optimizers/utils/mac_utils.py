@@ -168,7 +168,8 @@ def momentum_step(optimizer):
                 continue
 
             d_p = p.grad.data
-            d_p.add_(p.data, alpha=weight_decay)
+            if weight_decay != 0 and optimizer._step >= 20 * optimizer.Tcov:
+                d_p.add_(p.data, alpha=weight_decay)
 
             param_state = optimizer.state[p]
 
