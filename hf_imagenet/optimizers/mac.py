@@ -86,7 +86,6 @@ class MAC(Optimizer):
             actv = torch.cat([actv, ones], dim=1)
 
         avg_actv = actv.mean(0)
-        avg_actv += actv.pow(2).mean(0)
 
         state = self.state[module]
         if 'exp_avg' not in state:
