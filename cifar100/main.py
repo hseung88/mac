@@ -29,7 +29,7 @@ from optimizers.eva import Eva
 from optimizers.nysact_mod import NysAct_G, NysAct_S
 from optimizers.shaper import Shaper
 from optimizers.soap import SOAP
-from optimizers.fdadam import PerModeAdam
+from optimizers.fso import FSO
 
 
 def get_parser():
@@ -107,8 +107,8 @@ def get_ckpt_name(model='resnet', optimizer='sgd', lr=0.1, momentum=0.9, stat_de
             lr, beta1, beta2, weight_decay, eps, lr_scheduler, batchsize, epoch, run),
         'adamw': 'lr{}-betas{}-{}-wdecay{}-eps{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
             lr, beta1, beta2, weight_decay, eps, lr_scheduler, batchsize, epoch, run),
-        'pmadam': 'lr{}-betas{}-{}-wdecay{}-eps{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
-            lr, beta1, beta2, weight_decay, eps, lr_scheduler, batchsize, epoch, run),
+        'fso': 'lr{}-betas{}-{}-wdecay{}-eps{}-damping{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
+            lr, beta1, beta2, weight_decay, eps, damping, lr_scheduler, batchsize, epoch, run),
         #'kfac': 'lr{}-momentum{}-stat_decay{}-damping{}-wdecay{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
         #    lr, momentum, stat_decay, damping, weight_decay, tcov, tinv, lr_scheduler, batchsize, epoch, run),
         'foof': 'lr{}-momentum{}-stat_decay{}-damping{}-wdecay{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
@@ -196,9 +196,9 @@ def create_optimizer(args, model_params):
     elif args.optim == 'adamw':
         return AdamW(model_params, args.lr, betas=(args.beta1, args.beta2),
                           weight_decay=args.weight_decay, eps=args.eps)
-    elif args.optim == 'pmadam':
-        return PerModeAdam(model_params, args.lr, beta1=args.beta1, beta2=args.beta2,
-                     weight_decay=args.weight_decay, eps=args.eps)
+    elif args.optim == 'fso':
+        return FSO(model_params, args.lr, beta1=args.beta1, beta2=args.beta2,
+                     weight_decay=args.weight_decay, eps=args.eps, damping=args.damping)
     #elif args.optim == 'kfac':
     #    return KFAC(model_params, args.lr, momentum=args.momentum, stat_decay=args.stat_decay,
     #                  weight_decay=args.weight_decay, damping=args.damping, Tcov=args.tcov, Tinv=args.tinv)

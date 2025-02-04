@@ -3,7 +3,7 @@ from torch.optim.optimizer import Optimizer
 import math
 
 
-class PerModeAdam(Optimizer):
+class FSO(Optimizer):
     r"""Implements a per-mode adaptive optimizer with momentum and bias correction.
 
     For each parameter tensor p of shape (d₁, d₂, ..., dₙ), this optimizer maintains:
@@ -31,7 +31,7 @@ class PerModeAdam(Optimizer):
         weight_decay (float): Weight decay (L2 penalty) (default: 0).
     """
 
-    def __init__(self, params, lr=1e-3, beta1=0.9, beta2=0.99, eps=1e-8, weight_decay=0):
+    def __init__(self, params, lr=1e-3, beta1=0.9, beta2=0.99, eps=1e-8, damping=1.0, weight_decay=0):
         if lr < 0.0:
             raise ValueError("Invalid learning rate: {}".format(lr))
         if not 0.0 <= beta1 < 1.0:
@@ -40,11 +40,11 @@ class PerModeAdam(Optimizer):
             raise ValueError("Invalid beta2: {}".format(beta2))
         if eps < 0.0:
             raise ValueError("Invalid eps: {}".format(eps))
-        defaults = dict(lr=lr, beta1=beta1, beta2=beta2, eps=eps, weight_decay=weight_decay)
-        super(PerModeAdam, self).__init__(params, defaults)
+        defaults = dict(lr=lr, beta1=beta1, beta2=beta2, eps=eps, damping=damping, weight_decay=weight_decay)
+        super(FSO, self).__init__(params, defaults)
 
     def __setstate__(self, state):
-        super(PerModeAdam, self).__setstate__(state)
+        super(FSO, self).__setstate__(state)
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -66,6 +66,7 @@ class PerModeAdam(Optimizer):
             beta1 = group['beta1']
             beta2 = group['beta2']
             eps = group['eps']
+            damping = group['damping']
             weight_decay = group['weight_decay']
 
             for p in group['params']:
@@ -73,70 +74,34 @@ class PerModeAdam(Optimizer):
                     continue
 
                 grad = p.grad.data
-                if grad.is_sparse:
-                    raise RuntimeError("PerModeAdam does not support sparse gradients")
-
-                # Optionally apply decoupled weight decay.
-                if weight_decay != 0:
-                    p.data.mul_(1-lr*weight_decay)
 
                 state = self.state[p]
                 # State initialization.
                 if not state:
                     state['step'] = 0
                     state['exp_avg'] = torch.zeros_like(p.data)  # For momentum (first moment)
-                    # For each mode, maintain an EMA of squared gradients.
-                    state['v'] = []
-                    for dim, size in enumerate(p.data.shape):
-                        state['v'].append(torch.zeros(size, device=p.device, dtype=p.dtype))
+                    state['exp_avg_sq'] = torch.zeros_like(p.data)
                 state['step'] += 1
                 t = state['step']
 
-                exp_avg = state['exp_avg']
-                v_list = state['v']
+                exp_avg, exp_avg_sq = state['exp_avg'], state['exp_avg_sq']
+                sq_norm = torch.linalg.norm(grad).pow(2)
+                grad.div_(damping + sq_norm)
 
                 # Update EMA of the raw gradient.
                 exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
+                exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
+
+                denom = exp_avg_sq.sqrt().add_(eps)
+
                 # Bias-corrected first moment.
                 bias_correction1 = 1 - beta1 ** t
-                exp_avg_corr = exp_avg / bias_correction1
-
-                # Compute elementwise squared gradient.
-                grad_sq = grad.pow(2)
-                dims = grad.dim()
-                # Update per-mode EMA for squared gradients.
-                for i in range(dims):
-                    reduce_dims = tuple(j for j in range(dims) if j != i)
-                    # When grad is 1D, reduce_dims might be empty; in that case, use grad_sq directly.
-                    if len(reduce_dims) > 0:
-                        mode_mean = grad_sq.mean(dim=reduce_dims)
-                    else:
-                        mode_mean = grad_sq
-                    v_list[i].mul_(beta2).add_(mode_mean, alpha=1 - beta2)
-
-                # Compute bias correction for per-mode EMA; here we use the same t for all modes.
                 bias_correction2 = 1 - beta2 ** t
 
-                # Combine the corrected per-mode EMAs into an effective variance.
-                effective_var = None
-                for i in range(dims):
-                    # Corrected per-mode variance.
-                    v_i_corr = v_list[i] / bias_correction2
-                    # Reshape to broadcast: shape = [1, ..., d_i, ..., 1]
-                    shape = [1] * dims
-                    shape[i] = v_i_corr.shape[0]
-                    v_i_expanded = v_i_corr.view(*shape)
-                    # Geometric mean: multiply the per-mode factors raised to (1/dims).
-                    if effective_var is None:
-                        effective_var = v_i_expanded.pow(1.0 / dims)
-                    else:
-                        effective_var = effective_var * v_i_expanded.pow(1.0 / dims)
+                step_size = lr * math.sqrt(bias_correction2) / bias_correction1
 
-                # Compute the denominator.
-                denom = effective_var.sqrt().add_(eps)
-
-                # Update parameters.
-                p.data.addcdiv_(exp_avg_corr, denom, value=-lr)
+                p.data.mul_(1 - step_size * weight_decay)
+                p.data.addcdiv_(exp_avg, denom, value=-step_size)
 
         return loss
 
@@ -145,7 +110,7 @@ class PerModeAdam(Optimizer):
 if __name__ == "__main__":
     # A simple test model.
     model = torch.nn.Linear(10, 1)
-    optimizer = PerModeAdam(model.parameters(), lr=1e-3, beta1=0.9, beta2=0.99, eps=1e-8, weight_decay=1e-2)
+    optimizer = FSO(model.parameters(), lr=1e-3, beta1=0.9, beta2=0.99, eps=1e-8, weight_decay=1e-2, damping=1.0)
     loss_fn = torch.nn.MSELoss()
 
     # Dummy data.
