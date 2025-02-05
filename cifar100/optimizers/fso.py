@@ -4,33 +4,6 @@ import math
 
 
 class FSO(Optimizer):
-    r"""Implements a per-mode adaptive optimizer with momentum and bias correction.
-
-    For each parameter tensor p of shape (d₁, d₂, ..., dₙ), this optimizer maintains:
-      - An exponential moving average (EMA) of the raw gradient:
-            m_t = β₁ * m_{t-1} + (1-β₁) * g_t,
-        with bias correction:  m̂_t = m_t / (1-β₁^t).
-
-      - For each mode i (i=1,...,n), an EMA of the squared gradients averaged over all
-        dimensions except i:
-            vₜ^(i) = β₂ * vₜ₋₁^(i) + (1-β₂) * mean(g_t^2, over all dims except i),
-        with bias correction:  v̂ₜ^(i) = vₜ^(i) / (1-β₂^t).
-
-      - The effective variance is computed via the geometric mean:
-            v_eff = ∏_{i=1}^n (v̂^(i))^(1/n).
-
-      The update is then:
-            p ← p - lr * (m̂_t / (sqrt(v_eff) + eps)).
-
-    Arguments:
-        params (iterable): Iterable of parameters to optimize or dicts defining parameter groups.
-        lr (float): Learning rate.
-        beta1 (float): Coefficient for the EMA of the gradient (default: 0.9).
-        beta2 (float): Coefficient for the EMA of the per-mode squared gradients (default: 0.99).
-        eps (float): Term added to the denominator for numerical stability (default: 1e-8).
-        weight_decay (float): Weight decay (L2 penalty) (default: 0).
-    """
-
     def __init__(self, params, lr=1e-3, beta1=0.9, beta2=0.99, eps=1e-8, damping=1e-8, weight_decay=0):
         if lr < 0.0:
             raise ValueError("Invalid learning rate: {}".format(lr))
@@ -48,14 +21,6 @@ class FSO(Optimizer):
 
     @torch.no_grad()
     def step(self, closure=None):
-        """Performs a single optimization step.
-
-        Args:
-            closure (callable, optional): A closure that reevaluates the model
-                and returns the loss.
-        Returns:
-            loss (torch.Tensor, optional): Loss evaluated after the step, if provided.
-        """
         loss = None
         if closure is not None:
             with torch.enable_grad():
