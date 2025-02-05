@@ -100,7 +100,7 @@ class FSO(Optimizer):
 
                 step_size = lr * math.sqrt(bias_correction2) / bias_correction1
 
-                p.data.mul_(1 - lr * base_wd / denom)
+                p.data.mul_(1 - lr * base_wd * denom)
                 p.data.addcdiv_(exp_avg, denom, value=-step_size)
 
         return loss
@@ -110,7 +110,7 @@ class FSO(Optimizer):
 if __name__ == "__main__":
     # A simple test model.
     model = torch.nn.Linear(10, 1)
-    optimizer = FSO(model.parameters(), lr=1e-3, beta1=0.9, beta2=0.99, eps=1e-8, weight_decay=1e-2, damping=1.0)
+    optimizer = FSO(model.parameters(), lr=1e-3, beta1=0.9, beta2=0.99, eps=1e-8, weight_decay=1e-3, damping=1.0)
     loss_fn = torch.nn.MSELoss()
 
     # Dummy data.
