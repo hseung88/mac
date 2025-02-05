@@ -118,7 +118,7 @@ def grad_layers(module, memo=None, prefix=''):
 
 
 def build_layer_map(model, fwd_hook_fn=None, bwd_hook_fn=None,
-                    supported_layers=(nn.Linear)):
+                    supported_layers=(nn.Linear, nn.Conv2d)):
     layer_map = {}
 
     for layer, prefix, params in grad_layers(model):
@@ -206,9 +206,9 @@ def nag_step(optimizer):
 def adamw_step(optimizer):
     for group in optimizer.param_groups:
         lr = group['lr']
-        beta1 = group['beta1']
-        beta2 = group['beta2']
-        eps = group['eps']
+        beta1 = 0.9
+        beta2 = 0.999
+        eps = 1e-8
         weight_decay = group['weight_decay']
 
         for p in group['params']:
