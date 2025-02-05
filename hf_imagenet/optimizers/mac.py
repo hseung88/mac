@@ -14,7 +14,7 @@ class MAC(Optimizer):
             lr=0.1,
             momentum=0.9,
             stat_decay=0.95,
-            damping=1.0,
+            damping=0.1,
             weight_decay=5e-4,
             Tcov=5,
             Tinv=100,
@@ -148,7 +148,8 @@ class MAC(Optimizer):
                 #else:
                 #    layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
 
-        adamw_step(self)
+        #adamw_step(self)
+        momentum_step(self)
         self._step += 1
 
         return loss
