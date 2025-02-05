@@ -31,7 +31,7 @@ class FSO(Optimizer):
         weight_decay (float): Weight decay (L2 penalty) (default: 0).
     """
 
-    def __init__(self, params, lr=1e-3, beta1=0.9, beta2=0.99, eps=1e-8, damping=1.0, weight_decay=0):
+    def __init__(self, params, lr=1e-3, beta1=0.9, beta2=0.99, eps=1e-8, damping=1e-8, weight_decay=0):
         if lr < 0.0:
             raise ValueError("Invalid learning rate: {}".format(lr))
         if not 0.0 <= beta1 < 1.0:
@@ -67,7 +67,7 @@ class FSO(Optimizer):
             beta2 = group['beta2']
             eps = group['eps']
             damping = group['damping']
-            weight_decay = group['weight_decay']
+            base_wd = group['weight_decay']
 
             for p in group['params']:
                 if p.grad is None:
@@ -85,8 +85,8 @@ class FSO(Optimizer):
                 t = state['step']
 
                 exp_avg, exp_avg_sq = state['exp_avg'], state['exp_avg_sq']
-                sq_norm = grad.pow(2).sum()
-                grad.div_(damping + sq_norm)
+                #sq_norm = grad.pow(2).sum()
+                #grad.div_(damping + sq_norm)
 
                 # Update EMA of the raw gradient.
                 exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
@@ -100,7 +100,7 @@ class FSO(Optimizer):
 
                 step_size = lr * math.sqrt(bias_correction2) / bias_correction1
 
-                p.data.mul_(1 - lr * weight_decay)
+                p.data.mul_(1 - lr * base_wd / denom)
                 p.data.addcdiv_(exp_avg, denom, value=-step_size)
 
         return loss
