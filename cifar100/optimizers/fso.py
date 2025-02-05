@@ -100,7 +100,7 @@ class FSO(Optimizer):
 
                 step_size = lr * math.sqrt(bias_correction2) / bias_correction1
 
-                p.data.mul_(1 - step_size * weight_decay)
+                p.data.mul_(1 - lr * weight_decay)
                 p.data.addcdiv_(exp_avg, denom, value=-step_size)
 
         return loss
