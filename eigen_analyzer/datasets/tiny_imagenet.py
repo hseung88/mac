@@ -27,7 +27,7 @@ class TinyImageNetDataModule(ImageDataModule):
         ])
 
     def setup(self):
-        data_path = '/data/home/hseung/work/dataset/pytorch_data/tiny-imagenet-200'
+        data_path = '/home/hseung/work/data/tiny-imagenet-200'
         self.tr_dataset = ImageFolder(
             os.path.join(data_path, 'train'), 
             transform=self.tr_transform
