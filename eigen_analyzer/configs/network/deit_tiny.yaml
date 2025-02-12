@@ -1,0 +1,14 @@
+size: 192
+name: DeiT-Tiny
+module:
+  _target_: networks.deit.DeiT_tiny
+params:
+  img_size: 64
+  patch_size: 4
+  num_classes: ${dataset.num_classes}
+  embed_dim: 192
+  depth: 12
+  num_heads: 3
+  mlp_ratio: 4.0
+  qkv_bias: true
+  norm_layer: "LayerNorm"
