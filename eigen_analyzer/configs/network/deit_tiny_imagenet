@@ -1,0 +1,7 @@
+size: 192
+name: DeiT-Tiny
+module:
+  _target_: networks.deit.DeiT_tiny_imagenet
+params:
+  img_size: 64
+  num_classes: ${dataset.num_classes}
