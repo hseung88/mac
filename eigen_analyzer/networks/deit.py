@@ -5,9 +5,9 @@ from timm.models.vision_transformer import VisionTransformer, _cfg
 from functools import partial
 
 # Custom DeiT Model for CIFAR-100 (32x32 images)
-class DeiT32(nn.Module):
+class DeiT_tiny(nn.Module):
     def __init__(self, img_size=32, patch_size=4, num_classes=100, embed_dim=384, depth=12, num_heads=6, mlp_ratio=4.0):
-        super(DeiT32, self).__init__()
+        super(DeiT_tiny, self).__init__()
         self.deit = VisionTransformer(
             img_size=img_size,
             patch_size=patch_size,
