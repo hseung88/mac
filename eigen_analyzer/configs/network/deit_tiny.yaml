@@ -3,5 +3,5 @@ name: DeiT-Tiny
 module:
   _target_: networks.deit.DeiT_tiny
 params:
-  img_size: 64
+  img_size: 32
   num_classes: ${dataset.num_classes}
