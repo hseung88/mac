@@ -14,10 +14,10 @@ class MAC(Optimizer):
             lr=0.1,
             momentum=0.9,
             stat_decay=0.95,
-            damping=1.0,
+            damping=0.01,
             weight_decay=5e-4,
             Tcov=5,
-            Tinv=5,
+            Tinv=50,
     ):
         if lr < 0.0:
             raise ValueError(f"Invalid learning rate: {lr}")
@@ -155,7 +155,7 @@ class MAC(Optimizer):
                     A_inv = state['A_inv'].to(grad_mat.dtype)
 
                 # If the layer's name involves 'attn.qkv', cube A_inv
-                if "attn.qkv" in str(layer):
+                if "attn.qkv" in self.layer_map[layer]['name']:
                     A_inv = torch.matrix_power(A_inv, 3)
 
                 #if isinstance(layer, (nn.Linear, nn.Conv2d)):
