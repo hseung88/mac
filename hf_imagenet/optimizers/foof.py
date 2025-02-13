@@ -10,9 +10,9 @@ class FOOF(Optimizer):
     def __init__(self,
                  params,
                  lr=0.1,
-                 momentum=0.95,
-                 stat_decay=0.99,
-                 damping=0.01,
+                 momentum=0.9,
+                 stat_decay=0.95,
+                 damping=1.0,
                  weight_decay=1e-4,
                  Tcov=5,
                  Tinv=50):
@@ -117,7 +117,10 @@ class FOOF(Optimizer):
                     self.update_inverse(layer, damping)
 
                 grad_mat = reshape_grad(layer)
-                v = torch.matmul(grad_mat, self.A_inv[layer])
+                A_inv = self.A_inv[layer]
+                if "attn.qkv" in self.layer_map[layer]['name']:
+                    A_inv = torch.matrix_power(A_inv, 3)
+                v = grad_mat @ A_inv
 
                 if layer.bias is not None:
                     v = [v[:, :-1], v[:, -1:]]
