@@ -350,7 +350,7 @@ def create_optimizer_v2(
     #    optimizer = KFAC(parameters, momentum=0.9, stat_decay=0.95, damping=10.0, Tcov=5, Tinv=5, **opt_args)   
     #    optimizer.model = model_or_params
     elif opt_lower == 'foof':
-        optimizer = FOOF(parameters, momentum=0.9, stat_decay=0.95, damping=0.5, Tcov=5, Tinv=5, **opt_args)   
+        optimizer = FOOF(parameters, **opt_args)
         optimizer.model = model_or_params
     elif opt_lower == 'eva':
         opt_args.pop('eps', None)
