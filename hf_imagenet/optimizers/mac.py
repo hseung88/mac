@@ -95,8 +95,6 @@ class MAC(Optimizer):
         if (self._step % self.Tcov) != 0:
             return
 
-        self.emastep += 1
-
         group = self.param_groups[0]
         stat_decay = group['stat_decay']
 
@@ -126,10 +124,13 @@ class MAC(Optimizer):
             with torch.enable_grad():
                 loss = closure()
 
+        b_updated = False
         group = self.param_groups[0]
         stat_decay = group['stat_decay']
         damping = self.damping
-        b_updated = (self._step % self.Tinv == 0)
+        if self._step % self.Tinv == 0:
+            b_updated = True
+            self.emastep += 1
 
         for layer in self.layer_map:
             if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
@@ -155,8 +156,8 @@ class MAC(Optimizer):
                     A_inv = state['A_inv'].to(grad_mat.dtype)
 
                 # If the layer's name involves 'attn.qkv', cube A_inv
-                if "attn.qkv" in self.layer_map[layer]['name']:
-                    A_inv = torch.matrix_power(A_inv, 3)
+                #if "attn.qkv" in self.layer_map[layer]['name']:
+                #    A_inv = torch.matrix_power(A_inv, 3)
 
                 #if isinstance(layer, (nn.Linear, nn.Conv2d)):
                 v = grad_mat @ A_inv
