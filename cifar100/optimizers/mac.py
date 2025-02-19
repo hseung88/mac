@@ -98,7 +98,7 @@ class MAC(Optimizer):
         if (self._step % self.Tcov) != 0:
             return
 
-        self.emastep += 1
+        #self.emastep += 1
 
         group = self.param_groups[0]
         stat_decay = group['stat_decay']
@@ -141,10 +141,14 @@ class MAC(Optimizer):
             with torch.enable_grad():
                 loss = closure()
 
+        b_updated = False
         group = self.param_groups[0]
         stat_decay = group['stat_decay']
         damping = self.damping
-        b_updated = (self._step % self.Tinv == 0)
+        if self._step % self.Tinv == 0:
+            b_updated = True
+            self.emastep += 1
+        #b_updated = (self._step % self.Tinv == 0)
         self._step += 1
 
         for layer in self.layer_map:
