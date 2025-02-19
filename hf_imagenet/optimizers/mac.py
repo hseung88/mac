@@ -14,7 +14,7 @@ class MAC(Optimizer):
             lr=0.1,
             momentum=0.9,
             stat_decay=0.95,
-            damping=0.01,
+            damping=1.0,
             weight_decay=5e-4,
             Tcov=5,
             Tinv=50,
@@ -111,11 +111,14 @@ class MAC(Optimizer):
             actv = torch.cat([actv, ones], dim=1)
 
         avg_actv = actv.mean(0)
+        diag_A = actv.pow(2).mean(0)
 
         state = self.state[module]
         if 'exp_avg' not in state:
             state['exp_avg'] = torch.zeros_like(avg_actv, device=avg_actv.device)
+            state['exp_avg_diag'] = torch.zeros_like(diag_A, device=diag_A.device)
         state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
+        state['exp_avg_diag'].mul_(stat_decay).add_(diag_A, alpha=1 - stat_decay)
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -143,14 +146,19 @@ class MAC(Optimizer):
                     if b_updated:
                         bias_correction = 1.0 - (stat_decay ** self.emastep)
                         exp_avg = state['exp_avg'].div(bias_correction)
-                        sq_norm = torch.linalg.norm(exp_avg).pow(2)
+                        exp_avg_diag = 1.0 / state['exp_avg_diag'].div(bias_correction).add(damping)
+                        #sq_norm = torch.linalg.norm(exp_avg).pow(2)
+                        Dinv_a = exp_avg_diag.mul(exp_avg)
 
-                        if 'A_inv' not in state:
-                            state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype)
-                        else:
-                            state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype))
+                        state['A_inv'] = torch.diag(exp_avg_diag)
+                        state['A_inv'].sub_(torch.outer(Dinv_a, Dinv_a).div_(1.0 + torch.matmul(Dinv_a.t(), exp_avg)))
 
-                        state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
+                        #if 'A_inv' not in state:
+                        #    state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype)
+                        #else:
+                        #    state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype))
+
+                        #state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
                         #state['A_inv'].div_(damping)
 
                     A_inv = state['A_inv'].to(grad_mat.dtype)
