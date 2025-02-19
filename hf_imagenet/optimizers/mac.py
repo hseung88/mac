@@ -145,8 +145,9 @@ class MAC(Optimizer):
                 else:
                     if b_updated:
                         bias_correction = 1.0 - (stat_decay ** self.emastep)
-                        exp_avg = state['exp_avg'].div(bias_correction)
+                        exp_avg = state['exp_avg'].div(bias_correction).to(grad_mat.dtype)
                         exp_avg_diag = 1.0 / state['exp_avg_diag'].div(bias_correction).add(damping)
+                        exp_avg_diag = exp_avg_diag.to(grad_mat.dtype)
                         #sq_norm = torch.linalg.norm(exp_avg).pow(2)
                         Dinv_a = exp_avg_diag.mul(exp_avg)
 
