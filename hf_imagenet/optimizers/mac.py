@@ -3,7 +3,7 @@ import logging as log
 import torch
 import torch.nn as nn
 from torch.optim import Optimizer
-from .utils.mac_utils import extract_patches, reshape_grad, build_layer_map, momentum_step, ema_step
+from .utils.mac_utils import extract_patches, reshape_grad, build_layer_map, momentum_step
 
 
 class MAC(Optimizer):
@@ -188,8 +188,7 @@ class MAC(Optimizer):
                 else:
                     layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
 
-        #momentum_step(self)
-        ema_step(self)
+        momentum_step(self)
         self._step += 1
 
         return loss
