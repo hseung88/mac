@@ -54,6 +54,8 @@ def reshape_grad(layer):
 
     if classname == 'Conv2d':
         grad_mat = g.view(g.size(0), -1)  # n_filters * (in_c * kw * kh)
+    elif classname == 'LayerNorm':
+        grad_mat = g.view(-1, 1)  # only weight gradient for LayerNorm
     else:
         grad_mat = g
 
@@ -118,7 +120,8 @@ def grad_layers(module, memo=None, prefix=''):
 
 
 def build_layer_map(model, fwd_hook_fn=None, bwd_hook_fn=None,
-                    supported_layers=(nn.Linear, nn.Conv2d)):
+                    supported_layers=(nn.Linear, nn.Conv2d, nn.LayerNorm)):
+                    #supported_layers=(nn.Linear, nn.Conv2d)):
     layer_map = {}
 
     for layer, prefix, params in grad_layers(model):
@@ -176,6 +179,27 @@ def momentum_step(optimizer):
 
             p.data.mul_(1-step_size*weight_decay)
             p.data.add_(d_p, alpha=-step_size)
+
+
+def sign_gd_step(optimizer):
+    for group in optimizer.param_groups:
+        weight_decay = group['weight_decay']
+        step_size = group['lr']
+        momentum = group['momentum']
+
+        for p in group['params']:
+            if p.grad is None:
+                continue
+
+            d_p = p.grad.data
+
+            param_state = optimizer.state[p]
+            if 'momentum_buffer' not in param_state:
+                param_state['momentum_buffer'] = torch.zeros_like(p)
+            d_p = param_state['momentum_buffer'].mul_(momentum).add_(d_p)
+
+            p.data.mul_(1 - step_size * weight_decay)
+            p.data.add_(torch.sign(d_p), alpha=-step_size)
 
 
 def nag_step(optimizer):
