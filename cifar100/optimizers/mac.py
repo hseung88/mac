@@ -4,7 +4,7 @@ import logging as log
 import torch
 import torch.nn as nn
 from torch.optim import Optimizer
-from .utils.mac_utils import extract_patches, reshape_grad, build_layer_map, trainable_modules, momentum_step, nag_step, sgd_step
+from .utils.mac_utils import extract_patches, reshape_grad, build_layer_map, trainable_modules, momentum_step
 
 
 class MAC(Optimizer):
@@ -98,8 +98,6 @@ class MAC(Optimizer):
         if (self._step % self.Tcov) != 0:
             return
 
-        #self.emastep += 1
-
         group = self.param_groups[0]
         stat_decay = group['stat_decay']
 
@@ -116,23 +114,11 @@ class MAC(Optimizer):
             actv = torch.cat([actv, ones], dim=1)
 
         avg_actv = actv.mean(dim=0)
-        #diag_cov = (actv ** 2).mean(dim=0) - avg_actv ** 2
-        #diag_cov = actv.t() @ actv / actv.size(0) - torch.outer(avg_actv, avg_actv)
-        #v = avg_actv / avg_actv.norm()
-        # Compute actv @ v, which gives a column vector (b,) that we unsqueeze to (b,1)
-        #proj_coeff = actv @ v  # shape: (b,)
-        # Broadcast multiplication to subtract the projection on v from each row of actv.
-        #actv_proj = actv - proj_coeff.unsqueeze(1) * v
-        #avg_actv_proj = actv_proj.mean(dim=0)
 
         state = self.state[module]
         if 'exp_avg' not in state:
             state['exp_avg'] = torch.zeros_like(avg_actv, device=avg_actv.device)
-            #state['exp_avg_diag'] = torch.zeros_like(diag_cov, device=diag_cov.device)
-            #state['exp_avg_proj'] = torch.zeros_like(avg_actv_proj, device=avg_actv.device)
         state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
-        #state['exp_avg_diag'].mul_(stat_decay).add_(diag_cov, alpha=1 - stat_decay)
-        #state['exp_avg_proj'].mul_(stat_decay).add_(avg_actv_proj, alpha=1 - stat_decay)
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -148,7 +134,6 @@ class MAC(Optimizer):
         if self._step % self.Tinv == 0:
             b_updated = True
             self.emastep += 1
-        #b_updated = (self._step % self.Tinv == 0)
         self._step += 1
 
         for layer in self.layer_map:
@@ -162,7 +147,6 @@ class MAC(Optimizer):
                     if b_updated:
                         bias_correction = 1.0 - (stat_decay ** self.emastep)
                         exp_avg = state['exp_avg'].div(bias_correction)
-                        #exp_avg_diag = state['exp_avg_diag'].div(bias_correction)
                         sq_norm = torch.linalg.norm(exp_avg).pow(2)
 
                         if 'A_inv' not in state:
@@ -171,9 +155,7 @@ class MAC(Optimizer):
                             state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device))
 
                         state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping+ sq_norm))
-                        state['A_inv'].div_(10.0)
                         #state['A_inv'].div_(damping)
-                        #state['A_inv'].sub_(torch.linalg.multi_dot([state['A_inv'], exp_avg_diag, state['A_inv']]))
 
                     A_inv = state['A_inv']
 
