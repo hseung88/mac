@@ -320,7 +320,7 @@ def main(args):
         optimizer = MAC(parameters, lr=args.lr, momentum=args.momentum, damping=args.damping, Tinv=args.update, weight_decay=args.weight_decay)
         optimizer._configure(data_loader, model, device)
     elif opt_name == "smac":
-        optimizer = SMAC(parameters, lr=args.lr, damping=args.damping, update_freq=args.update, weight_decay=args.weight_decay)
+        optimizer = SMAC(parameters, lr=args.lr, momentum=args.momentum, damping=args.damping, Tinv=args.update, weight_decay=args.weight_decay)
         optimizer._configure(data_loader, model, device)
     elif opt_name == "nysact":
         optimizer = NysAct(parameters, lr=args.lr, damping=args.damping, weight_decay=args.weight_decay, rank_size=args.rank_size)

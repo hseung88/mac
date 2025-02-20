@@ -5,20 +5,22 @@ import torch.nn as nn
 from torch.optim import Optimizer
 from .utils.mac_utils import extract_patches, reshape_grad, build_layer_map, trainable_modules, momentum_step, nag_step
 
+
 def try_contiguous(x):
     return x if x.is_contiguous() else x.contiguous()
 
+
 class SMAC(Optimizer):
     def __init__(
-        self,
-        params,
-        lr=0.1,
-        momentum=0.9,
-        stat_decay=0.95,
-        damping=1.0,
-        weight_decay=5e-4,
-        Tcov=5,
-        Tinv=50,
+            self,
+            params,
+            lr=0.1,
+            momentum=0.9,
+            stat_decay=0.95,
+            damping=1.0,
+            weight_decay=5e-4,
+            Tcov=5,
+            Tinv=50,
     ):
         if lr < 0.0:
             raise ValueError(f"Invalid learning rate: {lr}")
@@ -27,8 +29,8 @@ class SMAC(Optimizer):
         if weight_decay < 0.0:
             raise ValueError(f"Invalid weight_decay value: {weight_decay}")
 
-        defaults = dict(lr=lr, 
-                        momentum=momentum, 
+        defaults = dict(lr=lr,
+                        momentum=momentum,
                         stat_decay=stat_decay,
                         weight_decay=weight_decay)
         super().__init__(params, defaults)
@@ -59,11 +61,11 @@ class SMAC(Optimizer):
 
         _, first_layer = next(trainable_modules(net))
         # Handle the case when the model is wrapped in DistributedDataParallel
-        #if hasattr(net, 'module'):
+        # if hasattr(net, 'module'):
         #    net = net.module
 
         # Directly capture the first layer (patch embedding) of ViTs
-        #first_layer = net.patch_embed.proj
+        # first_layer = net.patch_embed.proj
 
         with torch.no_grad():
             for images, _ in train_loader:
@@ -75,7 +77,7 @@ class SMAC(Optimizer):
                     ones = actv.new_ones((actv.shape[0], 1))
                     actv = torch.cat([actv, ones], dim=1)
 
-                #A = torch.einsum('ij,jk->ik', actv.t(), actv) / actv.size(0)  # Optimized matrix multiplication
+                # A = torch.einsum('ij,jk->ik', actv.t(), actv) / actv.size(0)  # Optimized matrix multiplication
                 A = torch.matmul(actv.t(), actv) / actv.size(0)
                 if cov_mat is None:
                     cov_mat = A
@@ -86,25 +88,23 @@ class SMAC(Optimizer):
 
         self.first_layer = first_layer
         eye_matrix = torch.eye(cov_mat.size(0), device=device, dtype=cov_mat.dtype)
-        #self.input_cov_inv = torch.linalg.inv(cov_mat + self.damping * eye_matrix)
+        # self.input_cov_inv = torch.linalg.inv(cov_mat + self.damping * eye_matrix)
         self.input_cov_inv = torch.cholesky_inverse(torch.linalg.cholesky(cov_mat + self.damping * eye_matrix))
         self.model = net
         self.layer_map[first_layer]['fwd_hook'].remove()
 
     def _capture_activation(
-        self,
-        module: nn.Module,
-        forward_input: List[torch.Tensor],
-        _forward_output: torch.Tensor
+            self,
+            module: nn.Module,
+            forward_input: List[torch.Tensor],
+            _forward_output: torch.Tensor
     ):
         if not module.training or not torch.is_grad_enabled():
             return
-            
+
         if (self._step % self.Tcov) != 0:
             return
 
-        self.emastep += 1
-            
         group = self.param_groups[0]
         stat_decay = group['stat_decay']
 
@@ -128,24 +128,24 @@ class SMAC(Optimizer):
         state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
 
     def _capture_backprop(
-        self,
-        module: nn.Module,
-        _grad_input: torch.Tensor,
-        grad_output: torch.Tensor
-    ):        
+            self,
+            module: nn.Module,
+            _grad_input: torch.Tensor,
+            grad_output: torch.Tensor
+    ):
         if (self._step % self.Tcov) != 0:
             return
-            
+
         group = self.param_groups[0]
         stat_decay = group['stat_decay']
 
         g = grad_output[0].data
         if isinstance(module, nn.Conv2d):
-            spatial_size = g.size(2) * g.size(3)
+            # spatial_size = g.size(2) * g.size(3)
             g = g.transpose(1, 2).transpose(2, 3)
         g = try_contiguous(g)
         g = g.view(-1, g.size(-1))
-        #if isinstance(module, nn.Conv2d):
+        # if isinstance(module, nn.Conv2d):
         #    g *= spatial_size
 
         avg_dz = g.pow(2).mean(0)
@@ -162,11 +162,13 @@ class SMAC(Optimizer):
             with torch.enable_grad():
                 loss = closure()
 
+        b_updated = False
         group = self.param_groups[0]
         stat_decay = group['stat_decay']
         damping = self.damping
-        b_updated = (self._step % self.Tinv == 0)
-
+        if self._step % self.Tinv == 0:
+            b_updated = True
+            self.emastep += 1
 
         for layer in self.layer_map:
             if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
@@ -178,7 +180,7 @@ class SMAC(Optimizer):
                     exp_avg_z = state['exp_avg_z'].div(bias_correction)
                     if 'Z_inv' not in state:
                         state['Z_inv'] = torch.eye(exp_avg_z.size(0), device=exp_avg_z.device)
-                    
+
                     Z = exp_avg_z.add_(damping).reciprocal_()
                     state['Z_inv'].diagonal().copy_(Z)
                 Z_inv = state['Z_inv']
@@ -196,7 +198,7 @@ class SMAC(Optimizer):
                             state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device))
 
                         state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
-                        state['A_inv'].div_(damping)
+                        # state['A_inv'].div_(damping)
 
                     A_inv = state['A_inv']
 

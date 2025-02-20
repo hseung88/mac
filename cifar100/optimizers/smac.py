@@ -102,8 +102,6 @@ class SMAC(Optimizer):
             
         if (self._step % self.Tcov) != 0:
             return
-
-        self.emastep += 1
             
         group = self.param_groups[0]
         stat_decay = group['stat_decay']
@@ -141,7 +139,7 @@ class SMAC(Optimizer):
 
         g = grad_output[0].data
         if isinstance(module, nn.Conv2d):
-            spatial_size = g.size(2) * g.size(3)
+            #spatial_size = g.size(2) * g.size(3)
             g = g.transpose(1, 2).transpose(2, 3)
         g = try_contiguous(g)
         g = g.view(-1, g.size(-1))
@@ -162,11 +160,13 @@ class SMAC(Optimizer):
             with torch.enable_grad():
                 loss = closure()
 
+        b_updated = False
         group = self.param_groups[0]
         stat_decay = group['stat_decay']
         damping = self.damping
-        b_updated = (self._step % self.Tinv == 0)
-
+        if self._step % self.Tinv == 0:
+            b_updated = True
+            self.emastep += 1
 
         for layer in self.layer_map:
             if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
@@ -196,7 +196,7 @@ class SMAC(Optimizer):
                             state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device))
 
                         state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
-                        state['A_inv'].div_(damping)
+                        #state['A_inv'].div_(damping)
 
                     A_inv = state['A_inv']
 
