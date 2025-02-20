@@ -333,3 +333,30 @@ def update_step(optimizer):
                 denom = exp_avg_sq.sqrt().add_(eps)
                 p.data.addcdiv_(exp_avg, denom, value=-step_size)
 
+
+def ema_step(optimizer):
+    for group in optimizer.param_groups:
+        lr = group['lr']
+        momentum = group['momentum']
+        weight_decay = group['weight_decay']
+
+        for p in group['params']:
+            state = optimizer.state[p]
+            if p.grad is None:
+                continue
+
+            grad = p.grad
+
+            if len(state) == 0:
+                state['step'] = 0
+                state['ema_grad'] = torch.zeros_like(p)
+
+            exp_avg = state['ema_grad']
+            state['step'] += 1
+            exp_avg.mul_(momentum).add_(grad, alpha=1 - momentum)
+
+            bias_correction1 = 1.0 - momentum ** state['step']
+            step_size = lr / bias_correction1
+
+            p.data.mul_(1 - lr * weight_decay)
+            p.data.add_(exp_avg, alpha=-step_size)
