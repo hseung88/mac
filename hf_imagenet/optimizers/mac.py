@@ -13,9 +13,9 @@ class MAC(Optimizer):
             lr=0.1,
             momentum=0.9,
             stat_decay=0.99,
-            damping=1.0,
+            damping=2.0,
             weight_decay=5e-4,
-            Tcov=5,
+            Tcov=1,
             Tinv=5,
     ):
         if lr < 0.0:
