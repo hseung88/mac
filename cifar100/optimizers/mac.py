@@ -156,7 +156,7 @@ class MAC(Optimizer):
                         #damping = (trace_cov - sq_norm) / exp_avg.size(0)
 
                         state['A_inv'] = torch.diag(1.0 / damping)
-                        D_inv_a = state['A_inv'] * exp_avg
+                        D_inv_a = (1.0 / damping) * exp_avg
                         state['A_inv'].sub_(torch.outer(D_inv_a, D_inv_a).div_(1.0 + torch.dot(exp_avg, D_inv_a)))
 
                         #if 'A_inv' not in state:
