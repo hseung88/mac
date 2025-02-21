@@ -98,26 +98,28 @@ class MAC(Optimizer):
         stat_decay = group['stat_decay']
 
         actv = forward_input[0].data
+        seq_length = 1
+
         if isinstance(module, nn.Conv2d):
             depthwise = module.groups == actv.size(1)
             actv = extract_patches(actv, module.kernel_size, module.stride, module.padding, depthwise)
-        elif isinstance(module, nn.Linear):
-            if actv.ndim > 2:  # linear layers in transformers
-                actv = actv.view(-1, actv.size(-1))
-        elif isinstance(module, nn.LayerNorm):
+        elif isinstance(module, (nn.Linear, nn.LayerNorm)):
+            # For linear and LayerNorm modules, assume input has shape [B, seq_length, ...]
+            seq_length = actv.size(1)
             if actv.ndim > 2:
                 actv = actv.view(-1, actv.size(-1))
-            # Standardize the inputs to mimic LayerNorm's normalization.
-            mean = actv.mean(dim=-1, keepdim=True)
-            var = actv.var(dim=-1, unbiased=False, keepdim=True)
-            actv = (actv - mean) / torch.sqrt(var + module.eps)
+            if isinstance(module, nn.LayerNorm):
+                # Normalize activations similar to LayerNorm
+                mean = actv.mean(dim=-1, keepdim=True)
+                var = actv.var(dim=-1, unbiased=False, keepdim=True)
+                actv = (actv - mean) / torch.sqrt(var + module.eps)
 
         # For Conv2d and Linear layers, append ones if bias exists.
         if isinstance(module, (nn.Conv2d, nn.Linear)) and module.bias is not None:
             ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)
             actv = torch.cat([actv, ones], dim=1)
 
-        avg_actv = actv.mean(0)
+        avg_actv = actv.mean(0) * seq_length
         #diag_A = actv.pow(2).mean(0)
 
         state = self.state[module]

@@ -164,10 +164,21 @@ def optimizer_kwargs(cfg):
         kwargs['betas'] = cfg.opt_betas
     if getattr(cfg, 'layer_decay', None) is not None:
         kwargs['layer_decay'] = cfg.layer_decay
+    if getattr(cfg, 'damping', None) is not None:
+        kwargs['damping'] = cfg.damping
+    if getattr(cfg, 'tcov', None) is not None:
+        kwargs['tcov'] = cfg.tcov
+    if getattr(cfg, 'tinv', None) is not None:
+        kwargs['tinv'] = cfg.tinv
+    if getattr(cfg, 'stat_decay', None) is not None:
+        kwargs['stat_decay'] = cfg.stat_decay
+    if getattr(cfg, 'rank_size', None) is not None:
+        kwargs['rank_size'] = cfg.rank_size
     if getattr(cfg, 'opt_args', None) is not None:
         kwargs.update(cfg.opt_args)
     if getattr(cfg, 'opt_foreach', None) is not None:
         kwargs['foreach'] = cfg.opt_foreach
+
     return kwargs
 
 
@@ -350,20 +361,24 @@ def create_optimizer_v2(
     #    optimizer = KFAC(parameters, momentum=0.9, stat_decay=0.95, damping=10.0, Tcov=5, Tinv=5, **opt_args)   
     #    optimizer.model = model_or_params
     elif opt_lower == 'foof':
+        opt_args.pop('eps', None)
         optimizer = FOOF(parameters, **opt_args)
         optimizer.model = model_or_params
     elif opt_lower == 'eva':
         opt_args.pop('eps', None)
         optimizer = optim.SGD(parameters, momentum=momentum, nesterov=True, **opt_args)
     elif opt_lower == 'mac':
+        opt_args.pop('eps', None)
         optimizer = MAC(parameters, **opt_args)
-        #optimizer.model = model_or_params
     elif opt_lower == 'smac':
+        opt_args.pop('eps', None)
         optimizer = SMAC(parameters, **opt_args) 
     elif opt_lower == 'nysact':
-        optimizer = NysAct(parameters, momentum=0.9, stat_decay=0.95, damping=1.0, Tcov=5, Tinv=5, rank_size=20, **opt_args)   
+        opt_args.pop('eps', None)
+        optimizer = NysAct(parameters, **opt_args)
         optimizer.model = model_or_params
     elif opt_lower == 'shaper':
+        opt_args.pop('eps', None)
         optimizer = Shaper(parameters, **opt_args)   
         optimizer.model = model_or_params
         
