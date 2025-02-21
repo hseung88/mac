@@ -113,12 +113,15 @@ class MAC(Optimizer):
             ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)
             actv = torch.cat([actv, ones], dim=1)
 
+        trace_cov = actv.pow(2).mean(0).sum()
         avg_actv = actv.mean(dim=0)
 
         state = self.state[module]
         if 'exp_avg' not in state:
             state['exp_avg'] = torch.zeros_like(avg_actv, device=avg_actv.device)
+            state['trace_cov'] = torch.zeros_like(trace_cov, device=avg_actv.device)
         state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
+        state['trace_cov'].mul_(stat_decay).add_(trace_cov, alpha=1 - stat_decay)
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -130,11 +133,10 @@ class MAC(Optimizer):
         b_updated = False
         group = self.param_groups[0]
         stat_decay = group['stat_decay']
-        damping = self.damping
+        #damping = self.damping
         if self._step % self.Tinv == 0:
             b_updated = True
             self.emastep += 1
-        self._step += 1
 
         for layer in self.layer_map:
             if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
@@ -147,15 +149,17 @@ class MAC(Optimizer):
                     if b_updated:
                         bias_correction = 1.0 - (stat_decay ** self.emastep)
                         exp_avg = state['exp_avg'].div(bias_correction)
+                        trace_cov = state['trace_cov'].div(bias_correction)
                         sq_norm = torch.linalg.norm(exp_avg).pow(2)
+                        damping = (trace_cov - sq_norm) / exp_avg.size(0)
 
                         if 'A_inv' not in state:
                             state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device)
                         else:
                             state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device))
 
-                        state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping+ sq_norm))
-                        #state['A_inv'].div_(damping)
+                        state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
+                        state['A_inv'].div_(damping)
 
                     A_inv = state['A_inv']
 
@@ -169,5 +173,6 @@ class MAC(Optimizer):
                     layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
 
         momentum_step(self)
+        self._step += 1
 
         return loss
