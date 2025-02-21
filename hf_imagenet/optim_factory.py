@@ -167,9 +167,9 @@ def optimizer_kwargs(cfg):
     if getattr(cfg, 'damping', None) is not None:
         kwargs['damping'] = cfg.damping
     if getattr(cfg, 'tcov', None) is not None:
-        kwargs['tcov'] = cfg.tcov
+        kwargs['Tcov'] = cfg.tcov
     if getattr(cfg, 'tinv', None) is not None:
-        kwargs['tinv'] = cfg.tinv
+        kwargs['Tinv'] = cfg.tinv
     if getattr(cfg, 'stat_decay', None) is not None:
         kwargs['stat_decay'] = cfg.stat_decay
     if getattr(cfg, 'rank_size', None) is not None:
