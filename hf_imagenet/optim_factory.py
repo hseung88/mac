@@ -172,8 +172,8 @@ def optimizer_kwargs(cfg):
         kwargs['Tinv'] = cfg.tinv
     if getattr(cfg, 'stat_decay', None) is not None:
         kwargs['stat_decay'] = cfg.stat_decay
-    if getattr(cfg, 'rank_size', None) is not None:
-        kwargs['rank_size'] = cfg.rank_size
+    #if getattr(cfg, 'rank_size', None) is not None:
+    #    kwargs['rank_size'] = cfg.rank_size
     if getattr(cfg, 'opt_args', None) is not None:
         kwargs.update(cfg.opt_args)
     if getattr(cfg, 'opt_foreach', None) is not None:
