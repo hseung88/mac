@@ -152,7 +152,7 @@ class MAC(Optimizer):
                         exp_avg_sq = state['exp_avg_sq'].div(bias_correction)
                         trace_cov = exp_avg_sq.sum()
                         sq_norm = torch.linalg.norm(exp_avg).pow(2)
-                        damping = (trace_cov - sq_norm) * exp_avg_sq / trace_cov
+                        damping = (trace_cov - sq_norm) * exp_avg_sq / trace_cov + 1e-8
                         #damping = (trace_cov - sq_norm) / exp_avg.size(0)
 
                         state['A_inv'] = torch.diag(1.0 / damping)
