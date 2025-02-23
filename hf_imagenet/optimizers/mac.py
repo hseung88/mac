@@ -47,39 +47,48 @@ class MAC(Optimizer):
         self._model = model
         self.layer_map = build_layer_map(model, fwd_hook_fn=self._capture_activation)
 
-    def _configure(self, train_loader, net, device):
-        n_batches = len(train_loader)
-        cov_mat = None
-
-        # Handle the case when the model is wrapped in DistributedDataParallel
-        if hasattr(net, 'module'):
-            net = net.module
-        # Directly capture the first layer (patch embedding) of ViTs
-        first_layer = net.patch_embed.proj
+        # For ViTs, if available, use the patch embedding projection
+        if hasattr(net, 'patch_embed'):
+            first_layer = net.patch_embed.proj
+        else:
+            _, first_layer = next(trainable_modules(net))
 
         with torch.no_grad():
             for images, _ in train_loader:
                 images = images.to(device, non_blocking=True)
-                actv = extract_patches(images, first_layer.kernel_size,
-                                       first_layer.stride, first_layer.padding,
-                                       depthwise=False)
-                if first_layer.bias is not None:
-                    ones = actv.new_ones((actv.shape[0], 1))
-                    actv = torch.cat([actv, ones], dim=1)
+                # For ViTs, instead of extract_patches, call the patch embedding directly.
+                if hasattr(net, 'patch_embed'):
+                    # Expecting output shape (B, L, D)
+                    tokens = first_layer(images)
+                    B, L, D = tokens.shape
+                    # Flatten tokens: treat each token as an individual sample.
+                    actv = tokens.view(-1, D)
+                    # If the patch embedding layer has a bias, append ones.
+                    if first_layer.bias is not None:
+                        ones = actv.new_ones((actv.shape[0], 1))
+                        actv = torch.cat([actv, ones], dim=1)
+                else:
+                    # For CNNs, use the existing extract_patches routine.
+                    actv = extract_patches(images, first_layer.kernel_size,
+                                           first_layer.stride, first_layer.padding,
+                                           depthwise=False)
+                    if first_layer.bias is not None:
+                        ones = actv.new_ones((actv.shape[0], 1))
+                        actv = torch.cat([actv, ones], dim=1)
 
-                # A = torch.einsum('ij,jk->ik', actv.t(), actv) / actv.size(0)  # Optimized matrix multiplication
                 A = torch.matmul(actv.t(), actv) / actv.size(0)
                 if cov_mat is None:
-                    cov_mat = A
+                    cov_mat = A.clone()
                 else:
                     cov_mat.add_(A)
-
             cov_mat /= n_batches
 
+        # For both CNNs and ViTs, compute the inverse preconditioner.
         self.first_layer = first_layer
         eye_matrix = torch.eye(cov_mat.size(0), device=device, dtype=cov_mat.dtype)
         self.input_cov_inv = torch.linalg.inv(cov_mat + self.damping * eye_matrix)
         self.model = net
+        # Remove the forward hook on the first layer after configuration.
         self.layer_map[first_layer]['fwd_hook'].remove()
 
     def _capture_activation(
