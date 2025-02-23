@@ -19,7 +19,7 @@ class MAC(Optimizer):
             Tinv=5,
             vit_mode=True,  # Indicates ViT architecture; enables special handling
             cls_token_weight=0.5,  # Weight for the class token vs. patch tokens when aggregating
-            use_nonlinear_transform=False  # If True, applies a tanh transform to the mean activation
+            use_nonlinear_transform=True  # If True, applies a tanh transform to the mean activation
     ):
         if lr < 0.0:
             raise ValueError(f"Invalid learning rate: {lr}")
