@@ -29,7 +29,8 @@ from optimizers.eva import Eva
 from optimizers.nysact_mod import NysAct_G, NysAct_S
 from optimizers.shaper import Shaper
 from optimizers.soap import SOAP
-from optimizers.fso import FSO
+from optimizers.new1 import NEW1
+from optimizers.new2 import NEW2
 
 
 def get_parser():
@@ -41,7 +42,7 @@ def get_parser():
     parser.add_argument('--optim', default='sgd', type=str, help='optimizer',
                         choices=['sgd', 'adam', 'adamw', 'adan', 'kfac', 'foof', 'adaact', 'shaper',
                                  'mac', 'smac', 'sgdhess', 'adahessian', 'eva', 'nysact_g', 'nysact_s',
-                                 'soap', 'mac2', 'macfosi', 'fso'
+                                 'soap', 'mac2', 'macfosi', 'new1', 'new2'
                                 ])
     parser.add_argument('--run', default=0, type=int, help='number of runs')
     parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
@@ -107,8 +108,6 @@ def get_ckpt_name(model='resnet', optimizer='sgd', lr=0.1, momentum=0.9, stat_de
             lr, beta1, beta2, weight_decay, eps, lr_scheduler, batchsize, epoch, run),
         'adamw': 'lr{}-betas{}-{}-wdecay{}-eps{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
             lr, beta1, beta2, weight_decay, eps, lr_scheduler, batchsize, epoch, run),
-        'fso': 'lr{}-betas{}-{}-wdecay{}-eps{}-damping{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
-            lr, beta1, beta2, weight_decay, eps, damping, lr_scheduler, batchsize, epoch, run),
         #'kfac': 'lr{}-momentum{}-stat_decay{}-damping{}-wdecay{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
         #    lr, momentum, stat_decay, damping, weight_decay, tcov, tinv, lr_scheduler, batchsize, epoch, run),
         'foof': 'lr{}-momentum{}-stat_decay{}-damping{}-wdecay{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
@@ -146,6 +145,10 @@ def get_ckpt_name(model='resnet', optimizer='sgd', lr=0.1, momentum=0.9, stat_de
             lr, beta1, beta2, weight_decay, eps, update, lr_scheduler, batchsize, epoch, run),
         'mac_v2': 'lr{}-momentum{}-wdecay{}-stat_decay{}-damping{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
             lr, momentum, weight_decay, stat_decay, damping, tcov, tinv, lr_scheduler, batchsize, epoch, run),
+        'new1': 'lr{}-momentum{}-stat_decay{}-damping{}-wdecay{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
+            lr, momentum, stat_decay, damping, weight_decay, tcov, tinv, lr_scheduler, batchsize, epoch, run),
+        'new2': 'lr{}-momentum{}-stat_decay{}-damping{}-wdecay{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
+            lr, momentum, stat_decay, damping, weight_decay, tcov, tinv, lr_scheduler, batchsize, epoch, run),
     }[optimizer]
     return '{}-{}-{}'.format(model, optimizer, name)
 
@@ -246,6 +249,12 @@ def create_optimizer(args, model_params):
                           weight_decay=args.weight_decay, eps=args.eps, precondition_frequency=args.update)
     elif args.optim == 'mac_v2':
         return SGD(model_params, args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
+    elif args.optim == 'new1':
+        return NEW1(model_params, args.lr, args.momentum, stat_decay=args.stat_decay, damping=args.damping,
+                   weight_decay=args.weight_decay, Tcov=args.tcov, Tinv=args.tinv)
+    elif args.optim == 'new2':
+        return NEW2(model_params, args.lr, args.momentum, stat_decay=args.stat_decay, damping=args.damping,
+                   weight_decay=args.weight_decay, Tcov=args.tcov, Tinv=args.tinv)
     else:
         print('Optimizer not found')
 
@@ -345,7 +354,7 @@ def main():
     #if args.optim in ['foof', 'adaact', 'nysact', 'shaper', 'kfac']:
     if args.optim in ['foof', 'adaact', 'nysact_g', 'nysact_s', 'shaper',  'macfosi']:
         optimizer.model = net
-    elif args.optim in ['mac', 'smac', 'mac2']:
+    elif args.optim in ['mac', 'smac', 'mac2', 'new1', 'new2']:
         optimizer._configure(train_loader, net, device)
 
     preconditioner = None
