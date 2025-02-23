@@ -189,7 +189,10 @@ class NEW2(Optimizer):
                     bias_correction = 1.0 - (stat_decay ** self.emastep)
                     exp_avg_z = state['exp_avg_z'].div(bias_correction)
                     sq_norm_z = state['sq_norm_z'].div(bias_correction)
-                    sq_norm_a = state['sq_norm_a'].div(bias_correction)
+                    if layer == self.first_layer:
+                        sq_norm_a = self.input_sq_norm
+                    else:
+                        sq_norm_a = state['sq_norm_a'].div(bias_correction)
                     if 'Z_inv' not in state:
                         state['Z_inv'] = torch.eye(exp_avg_z.size(0), device=exp_avg_z.device)
                     else:
@@ -197,10 +200,7 @@ class NEW2(Optimizer):
 
                     state['Z_inv'].sub_(torch.outer(exp_avg_z, exp_avg_z).div_(damping + sq_norm_z))
                     state['Z_inv'].div_(damping)
-                    if layer == self.first_layer:
-                        state['Z_inv'].div_(self.input_sq_norm)
-                    else:
-                        state['Z_inv'].div_(sq_norm_a)
+                    state['Z_inv'].div_(sq_norm_a)
 
                 Z_inv = state['Z_inv']
 
