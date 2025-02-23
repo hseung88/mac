@@ -55,49 +55,6 @@ class NEW2(Optimizer):
                                          fwd_hook_fn=self._capture_activation,
                                          bwd_hook_fn=self._capture_backprop)
 
-    def _configure(self, train_loader, net, device):
-        n_batches = len(train_loader)
-        cov_mat = None
-
-        _, first_layer = next(trainable_modules(net))
-        # Handle the case when the model is wrapped in DistributedDataParallel
-        # if hasattr(net, 'module'):
-        #    net = net.module
-
-        # Directly capture the first layer (patch embedding) of ViTs
-        # first_layer = net.patch_embed.proj
-
-        with torch.no_grad():
-            for images, _ in train_loader:
-                images = images.to(device, non_blocking=True)
-                actv = extract_patches(images, first_layer.kernel_size,
-                                       first_layer.stride, first_layer.padding,
-                                       depthwise=False)
-                if first_layer.bias is not None:
-                    ones = actv.new_ones((actv.shape[0], 1))
-                    actv = torch.cat([actv, ones], dim=1)
-
-                # A = torch.einsum('ij,jk->ik', actv.t(), actv) / actv.size(0)  # Optimized matrix multiplication
-                A = torch.matmul(actv.t(), actv) / actv.size(0)
-                sq_norm = torch.linalg.norm(actv, axis=1).pow(2).mean()
-                if cov_mat is None:
-                    cov_mat = A
-                    sq_norm_a = sq_norm
-                else:
-                    cov_mat.add_(A)
-                    sq_norm_a.add_(sq_norm)
-
-            cov_mat /= n_batches
-            sq_norm_a /= n_batches
-
-        self.first_layer = first_layer
-        eye_matrix = torch.eye(cov_mat.size(0), device=device, dtype=cov_mat.dtype)
-        # self.input_cov_inv = torch.linalg.inv(cov_mat + self.damping * eye_matrix)
-        self.input_cov_inv = torch.cholesky_inverse(torch.linalg.cholesky(cov_mat + self.damping * eye_matrix))
-        self.input_sq_norm = sq_norm_a
-        self.model = net
-        self.layer_map[first_layer]['fwd_hook'].remove()
-
     def _capture_activation(
             self,
             module: nn.Module,
@@ -126,14 +83,10 @@ class NEW2(Optimizer):
             actv = torch.cat([actv, ones], dim=1)
 
         avg_actv = actv.mean(0)
-        sq_norm_avg = torch.linalg.norm(actv, axis=1).pow(2).mean()
-
         state = self.state[module]
         if 'exp_avg' not in state:
             state['exp_avg'] = torch.zeros_like(avg_actv, device=avg_actv.device)
-            state['sq_norm_a'] = torch.zeros_like(sq_norm_avg, device=avg_actv.device)
         state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
-        state['sq_norm_a'].mul_(stat_decay).add_(sq_norm_avg, alpha=1 - stat_decay)
 
     def _capture_backprop(
             self,
@@ -149,21 +102,15 @@ class NEW2(Optimizer):
 
         g = grad_output[0].data
         if isinstance(module, nn.Conv2d):
-            # spatial_size = g.size(2) * g.size(3)
             g = g.transpose(1, 2).transpose(2, 3)
         g = try_contiguous(g)
         g = g.view(-1, g.size(-1))
-        # if isinstance(module, nn.Conv2d):
-        #    g *= spatial_size
 
         avg_dz = g.mean(0)
-        sq_norm_avg = torch.linalg.norm(g, axis=1).pow(2).mean()
         state = self.state[module]
         if 'exp_avg_z' not in state:
             state['exp_avg_z'] = torch.zeros_like(avg_dz, device=avg_dz.device)
-            state['sq_norm_z'] = torch.zeros_like(sq_norm_avg, device=avg_dz.device)
         state['exp_avg_z'].mul_(stat_decay).add_(avg_dz, alpha=1 - stat_decay)
-        state['sq_norm_z'].mul_(stat_decay).add_(sq_norm_avg, alpha=1 - stat_decay)
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -187,41 +134,30 @@ class NEW2(Optimizer):
 
                 if b_updated:
                     bias_correction = 1.0 - (stat_decay ** self.emastep)
+                    exp_avg = state['exp_avg'].div(bias_correction)
+                    sq_norm_a = torch.linalg.norm(exp_avg).pow(2)
                     exp_avg_z = state['exp_avg_z'].div(bias_correction)
-                    sq_norm = torch.linalg.norm(exp_avg_z).pow(2)
-                    if layer == self.first_layer:
-                        sq_norm_a = self.input_sq_norm
-                    else:
-                        sq_norm_a = state['sq_norm_a'].div(bias_correction)
+                    sq_norm_z = torch.linalg.norm(exp_avg_z).pow(2)
                     if 'Z_inv' not in state:
                         state['Z_inv'] = torch.eye(exp_avg_z.size(0), device=exp_avg_z.device)
                     else:
                         state['Z_inv'].copy_(torch.eye(exp_avg_z.size(0), device=exp_avg_z.device))
 
-                    state['Z_inv'].sub_(torch.outer(exp_avg_z, exp_avg_z).div_(damping + sq_norm))
+                    state['Z_inv'].sub_(torch.outer(exp_avg_z, exp_avg_z).div_(damping + sq_norm_z))
                     state['Z_inv'].div_(damping)
                     state['Z_inv'].div_(sq_norm_a)
 
+                    if 'A_inv' not in state:
+                        state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device)
+                    else:
+                        state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device))
+
+                    state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm_a))
+                    state['A_inv'].div_(damping)
+                    state['A_inv'].div_(sq_norm_z)
+
                 Z_inv = state['Z_inv']
-
-                if layer == self.first_layer:
-                    A_inv = self.input_cov_inv
-                else:
-                    if b_updated:
-                        exp_avg = state['exp_avg'].div(bias_correction)
-                        sq_norm = torch.linalg.norm(exp_avg).pow(2)
-                        sq_norm_z = state['sq_norm_z'].div(bias_correction)
-
-                        if 'A_inv' not in state:
-                            state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device)
-                        else:
-                            state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device))
-
-                        state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
-                        state['A_inv'].div_(damping)
-                        state['A_inv'].div_(sq_norm_z)
-
-                    A_inv = state['A_inv']
+                A_inv = state['A_inv']
 
                 v = Z_inv @ grad_mat @ A_inv
 

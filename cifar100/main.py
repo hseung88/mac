@@ -352,9 +352,9 @@ def main():
     optimizer = create_optimizer(args, net.parameters())
     
     #if args.optim in ['foof', 'adaact', 'nysact', 'shaper', 'kfac']:
-    if args.optim in ['foof', 'adaact', 'nysact_g', 'nysact_s', 'shaper',  'macfosi']:
+    if args.optim in ['foof', 'adaact', 'nysact_g', 'nysact_s', 'shaper', 'macfosi', 'new1', 'new2']:
         optimizer.model = net
-    elif args.optim in ['mac', 'smac', 'mac2', 'new1', 'new2']:
+    elif args.optim in ['mac', 'smac', 'mac2']:
         optimizer._configure(train_loader, net, device)
 
     preconditioner = None
