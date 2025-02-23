@@ -157,9 +157,13 @@ class NEW2(Optimizer):
                     state['A_inv'].div_(sq_norm_z)
 
                 Z_inv = state['Z_inv']
+                e, v = torch.linalg.eigh(Z_inv)
+                sqrt_Z_inv = (v * e.sqrt()) @ v.t()
                 A_inv = state['A_inv']
+                e, v = torch.linalg.eigh(A_inv)
+                sqrt_A_inv = (v * e.sqrt()) @ v.t()
 
-                v = Z_inv @ grad_mat @ A_inv
+                v = sqrt_Z_inv @ grad_mat @ sqrt_A_inv
 
                 if layer.bias is not None:
                     v = [v[:, :-1], v[:, -1:]]
