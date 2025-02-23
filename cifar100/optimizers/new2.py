@@ -79,7 +79,7 @@ class NEW2(Optimizer):
 
                 # A = torch.einsum('ij,jk->ik', actv.t(), actv) / actv.size(0)  # Optimized matrix multiplication
                 A = torch.matmul(actv.t(), actv) / actv.size(0)
-                sq_norm = torch.linalg.norm(actv, axis=1).pow(2)
+                sq_norm = torch.linalg.norm(actv, axis=1).pow(2).mean()
                 if cov_mat is None:
                     cov_mat = A
                     sq_norm_a = sq_norm
