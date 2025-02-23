@@ -135,14 +135,14 @@ class NEW1(Optimizer):
                 if b_updated:
                     bias_correction = 1.0 - (stat_decay ** self.emastep)
                     exp_avg = state['exp_avg'].div(bias_correction)
-                    sq_norm_a = torch.linalg.norm(exp_avg).pow(2)
+                    sq_norm_a = torch.linalg.norm(exp_avg)
                     exp_avg_z = state['exp_avg_z'].div(bias_correction)
                     sq_norm_z = torch.linalg.norm(exp_avg_z).pow(2)
 
                     if 'Z_inv' not in state:
                         state['Z_inv'] = torch.eye(exp_avg_z.size(0), device=exp_avg_z.device)
 
-                    Z = exp_avg_z.add_(damping).reciprocal_()
+                    Z = exp_avg_z.add_(damping).reciprocal_().sqrt()
                     state['Z_inv'].diagonal().copy_(Z)
                     state['Z_inv'].div_(sq_norm_a)
 
@@ -155,13 +155,11 @@ class NEW1(Optimizer):
                     state['A_inv'].div_(sq_norm_z)
 
                 Z_inv = state['Z_inv']
-                e, v = torch.linalg.eigh(Z_inv)
-                sqrt_Z_inv = (v * e.sqrt()) @ v.t()
                 A_inv = state['A_inv']
                 e, v = torch.linalg.eigh(A_inv)
                 sqrt_A_inv = (v * e.sqrt()) @ v.t()
 
-                v = sqrt_Z_inv @ grad_mat @ sqrt_A_inv
+                v = Z_inv @ grad_mat @ sqrt_A_inv
 
                 if layer.bias is not None:
                     v = [v[:, :-1], v[:, -1:]]
