@@ -61,11 +61,9 @@ class MAC(Optimizer):
         n_batches = len(train_loader)
         cov_mat = None
 
-        # For ViTs, if available, use the patch embedding projection
-        if hasattr(net, 'patch_embed'):
-            first_layer = net.patch_embed.proj
-        else:
-            _, first_layer = next(trainable_modules(net))
+        if hasattr(net, 'module'):
+            net = net.module
+        first_layer = net.patch_embed.proj
 
         with torch.no_grad():
             for images, _ in train_loader:
