@@ -98,28 +98,6 @@ class MAC(Optimizer):
         group = self.param_groups[0]
         stat_decay = group['stat_decay']
 
-        # If the current module is the qkv layer, extract q and k from _forward_output
-        if 'attn.qkv' in self.layer_map[module]['name']:
-            # _forward_output is a tensor of shape [B, N, 3 * dim]
-            B, N, three_dim = _forward_output.shape
-            # The attention module typically has num_heads and head_dim attributes
-            num_heads = self.model.num_heads
-            head_dim = self.model.embed_dim // num_heads
-            # Reshape and permute to separate the qkv tensor
-            qkv = _forward_output.reshape(B, N, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
-            q, k, _ = qkv.unbind(0)  # q, k shape: [B, num_heads, N, head_dim]
-
-            # Compute the mean over the batch and token dimensions for each head
-            avg_q = q.mean(dim=(0, 2))  # shape: [num_heads, head_dim]
-            avg_k = k.mean(dim=(0, 2))  # shape: [num_heads, head_dim]
-
-            state = self.state[module]
-            if 'exp_avg_q' not in state:
-                state['exp_avg_q'] = torch.zeros_like(avg_q, device=avg_q.device)
-                state['exp_avg_k'] = torch.zeros_like(avg_k, device=avg_k.device)
-            state['exp_avg_q'].mul_(stat_decay).add_(avg_q, alpha=1 - stat_decay)
-            state['exp_avg_k'].mul_(stat_decay).add_(avg_k, alpha=1 - stat_decay)
-
         actv = forward_input[0].data
         if isinstance(module, nn.Conv2d):
             depthwise = module.groups == actv.size(1)
@@ -146,6 +124,28 @@ class MAC(Optimizer):
             state['exp_avg'] = torch.zeros_like(avg_actv, device=avg_actv.device)
         state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
 
+        # If the current module is the qkv layer, extract q and k from _forward_output
+        if 'attn.qkv' in self.layer_map[module]['name']:
+            # _forward_output is a tensor of shape [B, N, 3 * dim]
+            B, N, three_dim = _forward_output.shape
+            # The attention module typically has num_heads and head_dim attributes
+            num_heads = self.model.num_heads
+            head_dim = self.model.embed_dim // num_heads
+            # Reshape and permute to separate the qkv tensor
+            qkv = _forward_output.reshape(B, N, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
+            q, k, _ = qkv.unbind(0)  # q, k shape: [B, num_heads, N, head_dim]
+
+            # Compute the mean over the batch and token dimensions for each head
+            avg_q = q.mean(dim=(0, 2))  # shape: [num_heads, head_dim]
+            avg_k = k.mean(dim=(0, 2))  # shape: [num_heads, head_dim]
+
+            state = self.state[module]
+            if 'exp_avg_q' not in state:
+                state['exp_avg_q'] = torch.zeros_like(avg_q, device=avg_q.device)
+                state['exp_avg_k'] = torch.zeros_like(avg_k, device=avg_k.device)
+            state['exp_avg_q'].mul_(stat_decay).add_(avg_q, alpha=1 - stat_decay)
+            state['exp_avg_k'].mul_(stat_decay).add_(avg_k, alpha=1 - stat_decay)
+
     @torch.no_grad()
     def step(self, closure=None):
         loss = None
@@ -168,7 +168,23 @@ class MAC(Optimizer):
 
                 if layer == self.first_layer:
                     A_inv = self.input_cov_inv.to(grad_mat.dtype)
-                elif 'attn.qkv' in self.layer_map[layer]['name']:
+                else:
+                    if b_updated:
+                        bias_correction = 1.0 - (stat_decay ** self.emastep)
+                        exp_avg = state['exp_avg'].div(bias_correction).to(grad_mat.dtype)
+                        sq_norm = torch.linalg.norm(exp_avg).pow(2)
+
+                        if 'A_inv' not in state:
+                            state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype)
+                        else:
+                            state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype))
+
+                        state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
+                        #state['A_inv'].div_(damping)
+
+                    A_inv = state['A_inv'].to(grad_mat.dtype)
+
+                if 'attn.qkv' in self.layer_map[layer]['name']:
                     three_d, input_dim = grad_mat.shape
                     embed_dim = self.model.embed_dim
                     num_heads = self.model.num_heads
@@ -184,6 +200,7 @@ class MAC(Optimizer):
                     k_grad_heads = k_grad_full.reshape(num_heads, head_dim, input_dim)
 
                     if b_updated:
+                        bias_correction = 1.0 - (stat_decay ** self.emastep)
                         # Update per-head inverse preconditioners.
                         # exp_avg_q and exp_avg_k are expected to be stored as [num_heads, head_dim].
                         exp_avg_q = state['exp_avg_q'].div(bias_correction).to(grad_mat.dtype)  # [num_heads, head_dim]
@@ -205,7 +222,7 @@ class MAC(Optimizer):
                         state['q_inv'] = q_inv_list
                         state['k_inv'] = k_inv_list
 
-                        # Use stored inverses to precondition each head's gradient.
+                    # Use stored inverses to precondition each head's gradient.
                     q_grad_heads_precond = []
                     k_grad_heads_precond = []
                     for i in range(num_heads):
@@ -220,21 +237,6 @@ class MAC(Optimizer):
 
                     new_grad = torch.cat([q_grad_precond, k_grad_precond, v_grad_full], dim=0)
                     grad_mat = new_grad
-                else:
-                    if b_updated:
-                        bias_correction = 1.0 - (stat_decay ** self.emastep)
-                        exp_avg = state['exp_avg'].div(bias_correction).to(grad_mat.dtype)
-                        sq_norm = torch.linalg.norm(exp_avg).pow(2)
-
-                        if 'A_inv' not in state:
-                            state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype)
-                        else:
-                            state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype))
-
-                        state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
-                        #state['A_inv'].div_(damping)
-
-                    A_inv = state['A_inv'].to(grad_mat.dtype)
 
             if isinstance(layer, nn.LayerNorm):
                 v = A_inv @ grad_mat
