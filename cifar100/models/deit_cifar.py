@@ -9,6 +9,9 @@ class DeiT32Tiny(nn.Module):
     def __init__(self, img_size=32, patch_size=4, num_classes=100, embed_dim=192, depth=12, num_heads=3, mlp_ratio=4.0):
         super(DeiT32Tiny, self).__init__()
 
+        self.num_heads = num_heads
+        self.embed_dim = embed_dim
+
         # Load a DeiT-Tiny architecture from timm and modify it for 32x32 images
         self.deit = VisionTransformer(
             img_size=img_size,

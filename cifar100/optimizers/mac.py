@@ -100,18 +100,18 @@ class MAC(Optimizer):
 
         # If the current module is the qkv layer, extract q and k from _forward_output
         if 'attn.qkv' in self.layer_map[module]['name']:
-            # _forward_output is a tensor of shape [B, N, 3 * dim].
+            # _forward_output is a tensor of shape [B, N, 3 * dim]
             B, N, three_dim = _forward_output.shape
             # The attention module typically has num_heads and head_dim attributes
-            num_heads = self.model.deit.blocks[0].attn.num_heads
-            head_dim = self.model.deit.embed_dim // num_heads
-            # Reshape and permute to separate the qkv tensor.
+            num_heads = self.model.num_heads
+            head_dim = self.model.embed_dim // num_heads
+            # Reshape and permute to separate the qkv tensor
             qkv = _forward_output.reshape(B, N, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
             q, k, _ = qkv.unbind(0)  # q, k shape: [B, num_heads, N, head_dim]
 
-            # Compute the mean over the batch and token dimensions for each head.
-            avg_q = q.mean(dim=(0, 1, 2))  # shape: [1, head_dim]
-            avg_k = k.mean(dim=(0, 1, 2))  # shape: [1, head_dim]
+            # Compute the mean over the batch and token dimensions for each head
+            avg_q = q.mean(dim=(0, 2))  # shape: [num_heads, head_dim]
+            avg_k = k.mean(dim=(0, 2))  # shape: [num_heads, head_dim]
 
             state = self.state[module]
             if 'exp_avg_q' not in state:
@@ -169,8 +169,8 @@ class MAC(Optimizer):
                 if layer == self.first_layer:
                     A_inv = self.input_cov_inv.to(grad_mat.dtype)
                 elif 'attn.qkv' in self.layer_map[layer]['name']:
-                    grad_mat = grad_mat.contiguous()
                     three_d, input_dim = grad_mat.shape
+                    print(grad_mat.shape)
                     d = three_d // 3
 
                     q_grad = grad_mat[:d, :]  # shape: [d, input_dim]
