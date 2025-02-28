@@ -190,7 +190,7 @@ class MAC(Optimizer):
                     num_heads = self.model.blocks[0].attn.num_heads
                     head_dim = embed_dim // num_heads
 
-                    # Split grad_mat into q, k, and v parts.
+                    # Split grad_mat into q, k, and v parts
                     q_grad_full = grad_mat[:embed_dim, :]  # shape: [embed_dim, input_dim]
                     k_grad_full = grad_mat[embed_dim:2 * embed_dim, :]  # shape: [embed_dim, input_dim]
                     v_grad_full = grad_mat[2 * embed_dim:, :]  # shape: [embed_dim, input_dim]
@@ -201,8 +201,7 @@ class MAC(Optimizer):
 
                     if b_updated:
                         bias_correction = 1.0 - (stat_decay ** self.emastep)
-                        # Update per-head inverse preconditioners.
-                        # exp_avg_q and exp_avg_k are expected to be stored as [num_heads, head_dim].
+                        # Update per-head inverse preconditioners
                         exp_avg_q = state['exp_avg_q'].div(bias_correction).to(grad_mat.dtype)  # [num_heads, head_dim]
                         exp_avg_k = state['exp_avg_k'].div(bias_correction).to(grad_mat.dtype)  # [num_heads, head_dim]
                         q_inv_list = []
@@ -212,7 +211,7 @@ class MAC(Optimizer):
                             avg_k_i = exp_avg_k[i]  # shape: [head_dim]
                             sq_norm_q_i = torch.linalg.norm(avg_q_i).pow(2)
                             sq_norm_k_i = torch.linalg.norm(avg_k_i).pow(2)
-                            # Initialize identity matrices and update them with a rank-1 correction.
+
                             q_inv_i = torch.eye(head_dim, device=avg_q_i.device, dtype=avg_q_i.dtype)
                             k_inv_i = torch.eye(head_dim, device=avg_q_i.device, dtype=avg_q_i.dtype)
                             q_inv_i.sub_(torch.outer(avg_q_i, avg_q_i).div_(damping + sq_norm_q_i))
