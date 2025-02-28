@@ -169,6 +169,7 @@ class MAC(Optimizer):
                 if layer == self.first_layer:
                     A_inv = self.input_cov_inv.to(grad_mat.dtype)
                 elif 'attn.qkv' in self.layer_map[layer]['name']:
+                    grad_mat = grad_mat.contiguous()
                     three_d, input_dim = grad_mat.shape
                     d = three_d // 3
 
