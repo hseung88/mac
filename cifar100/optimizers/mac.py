@@ -162,6 +162,8 @@ class MAC(Optimizer):
             self.emastep += 1
 
         for layer in self.layer_map:
+            print(layer)
+            print(self.layer_map[layer])
             if isinstance(layer, (nn.Linear, nn.Conv2d, nn.LayerNorm)) and layer.weight.grad is not None:
                 state = self.state[layer]
                 grad_mat = reshape_grad(layer)
@@ -196,8 +198,8 @@ class MAC(Optimizer):
                     q_inv = state['q_inv'].to(grad_mat.dtype)
                     k_inv = state['q_inv'].to(grad_mat.dtype)
 
-                    q_precond = q_inv @ q_grad
-                    k_precond = k_inv @ k_grad
+                    q_precond = k_inv @ q_grad
+                    k_precond = q_inv @ k_grad
                     # For v, we leave the gradient unchanged
                     new_grad = torch.cat([q_precond, k_precond, v_grad], dim=0)
                     grad_mat = new_grad
