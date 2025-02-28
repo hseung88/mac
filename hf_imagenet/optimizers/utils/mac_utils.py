@@ -153,7 +153,7 @@ def sgd_step(optimizer):
             d_p = p.grad.data
             d_p.add_(p.data, alpha=weight_decay)
 
-            # p.data.mul_(1.0 - step_size * weight_decay)
+            #p.data.mul_(1.0 - step_size * weight_decay)
             p.data.add_(d_p, alpha=-step_size)
 
 
