@@ -103,8 +103,8 @@ class MAC(Optimizer):
             # _forward_output is a tensor of shape [B, N, 3 * dim].
             B, N, three_dim = _forward_output.shape
             # The attention module typically has num_heads and head_dim attributes
-            num_heads = self.model.deit.blocks[0].num_heads
-            head_dim = self.model.deit.blocks[0].embed_dim // num_heads
+            num_heads = self.model.deit.blocks[0].attn.num_heads
+            head_dim = self.model.deit.embed_dim // num_heads
             # Reshape and permute to separate the qkv tensor.
             qkv = _forward_output.reshape(B, N, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
             q, k, _ = qkv.unbind(0)  # q, k shape: [B, num_heads, N, head_dim]
