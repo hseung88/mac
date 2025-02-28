@@ -158,27 +158,27 @@ def momentum_step(optimizer):
     for group in optimizer.param_groups:
         weight_decay = group['weight_decay']
         step_size = group['lr']
-        if 'beta1' in group:
-            momentum = group['beta1']
-        else:
-            momentum = group['momentum']
+        momentum = group['momentum']
 
         for p in group['params']:
             if p.grad is None:
                 continue
 
             d_p = p.grad.data
-            if weight_decay != 0 and optimizer._step >= 20 * optimizer.Tcov:
-                d_p.add_(p.data, alpha=weight_decay)
+            d_p.add_(p.data, alpha=weight_decay)
 
             param_state = optimizer.state[p]
+            if 'llr' in param_state:
+                pstep_size = param_state['llr'] * step_size / optimizer.initial_lr
+            else:
+                pstep_size = step_size
 
             if 'momentum_buffer' not in param_state:
                 param_state['momentum_buffer'] = torch.zeros_like(p)
             d_p = param_state['momentum_buffer'].mul_(momentum).add_(d_p)
 
-            #p.data.mul_(1-step_size*weight_decay)
-            p.data.add_(d_p, alpha=-step_size)
+            #p.data.mul_(1-pstep_size*weight_decay)
+            p.data.add_(d_p, alpha=-pstep_size)
 
 
 def nag_step(optimizer):
