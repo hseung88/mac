@@ -18,8 +18,8 @@ from torch.optim import Adam, SGD, AdamW
 from optimizers.kfac2 import KFAC
 from optimizers.foof import FOOF
 from optimizers.adaact_v2 import AdaAct
-#from optimizers.mac import MAC
-from optimizers.mac_llr import MAC
+from optimizers.mac import MAC
+#from optimizers.mac_llr import MAC
 from optimizers.mac2 import MAC2
 from optimizers.mac_fosi import MACFOSI
 #from optimizers.mac_v2 import MAC_v2
@@ -60,7 +60,6 @@ def get_parser():
     parser.add_argument('--tinv', default=50, type=int, help='preconditioner inverse period for kfac and foof')
     parser.add_argument('--alpha', default=1.0, type=float, help='scale lr of preconditioned SGD')
     parser.add_argument('--update', default=1, type=int, help='preconditioner update and inverse period')
-    parser.add_argument('--alr_factor', default=5.0, type=float, help='adaptive LR adjustment factor')
     parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
     parser.add_argument('--batchsize', type=int, default=128, help='batch size')
     parser.add_argument('--lr_scheduler', type=str, default='cosine', help='learning rate scheduler',
@@ -98,7 +97,7 @@ def build_dataset(args):
 
 
 def get_ckpt_name(model='resnet', optimizer='sgd', lr=0.1, momentum=0.9, stat_decay=0.9,
-                  beta1=0.9, beta2=0.999, eps=1e-8, weight_decay=5e-4, rank=5, alpha=1, alr_factor=5.0,
+                  beta1=0.9, beta2=0.999, eps=1e-8, weight_decay=5e-4, rank=5, alpha=1,
                   damping=0.01, tcov=5, tinv=50, update=1, batchsize=128,
                   epoch=200, run=0, lr_scheduler='cosine'):
     name = {
@@ -116,8 +115,8 @@ def get_ckpt_name(model='resnet', optimizer='sgd', lr=0.1, momentum=0.9, stat_de
             lr, momentum, stat_decay, damping, weight_decay, tcov, tinv, lr_scheduler, batchsize, epoch, run),
         'adaact': 'lr{}-betas{}-{}-eps{}-wdecay{}-update{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
             lr, beta1, beta2, eps, weight_decay, update, lr_scheduler, batchsize, epoch, run),
-        'mac': 'lr{}-momentum{}-stat_decay{}-damping{}-wdecay{}-alr{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
-            lr, momentum, stat_decay, damping, weight_decay, alr_factor, tcov, tinv, lr_scheduler, batchsize, epoch, run),
+        'mac': 'lr{}-momentum{}-stat_decay{}-damping{}-wdecay{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
+            lr, momentum, stat_decay, damping, weight_decay, tcov, tinv, lr_scheduler, batchsize, epoch, run),
         #'mac': 'lr{}-betas{}-{}-stat_decay{}-damping{}-wdecay{}-eps{}-tcov{}-tinv{}-projection{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
         #    lr, beta1, beta2, stat_decay, damping, weight_decay, eps, tcov, tinv, projection, lr_scheduler, batchsize,
         #    epoch, run),
@@ -215,7 +214,7 @@ def create_optimizer(args, model_params):
                       weight_decay=args.weight_decay, eps=args.eps, update=args.update)
     elif args.optim == 'mac':
         return MAC(model_params, args.lr, args.momentum, stat_decay=args.stat_decay, damping=args.damping,
-                   weight_decay=args.weight_decay, alr_factor=args.alr_factor, Tcov=args.tcov, Tinv=args.tinv)
+                   weight_decay=args.weight_decay, Tcov=args.tcov, Tinv=args.tinv)
     #elif args.optim == 'mac':
     #    return MAC(model_params, args.lr, beta1=args.beta1, beta2=args.beta2, stat_decay=args.stat_decay, eps=args.eps,
     #               damping=args.damping, weight_decay=args.weight_decay, Tcov=args.tcov, Tinv=args.tinv)
@@ -327,7 +326,7 @@ def main():
                               stat_decay=args.stat_decay, beta1=args.beta1, beta2=args.beta2, eps=args.eps,
                               weight_decay=args.weight_decay, damping=args.damping, tcov=args.tcov, tinv=args.tinv,
                               alpha=args.alpha, rank=args.rank, update=args.update, epoch=args.epoch,
-                              alr_factor=args.alr_factor, batchsize=args.batchsize, lr_scheduler=args.lr_scheduler,
+                              batchsize=args.batchsize, lr_scheduler=args.lr_scheduler,
                               run=args.run,
                               )
     print('ckpt_name:', ckpt_name)
