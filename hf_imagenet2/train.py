@@ -36,18 +36,18 @@ from timm.layers import convert_splitbn_model, convert_sync_batchnorm, set_fast_
 from timm.loss import JsdCrossEntropy, SoftTargetCrossEntropy, BinaryCrossEntropy, LabelSmoothingCrossEntropy
 from timm.models import create_model, safe_model_name, resume_checkpoint, load_checkpoint, model_parameters
 from optim_factory import create_optimizer_v2, optimizer_kwargs
-#from timm.optim import create_optimizer_v2, optimizer_kwargs
+# from timm.optim import create_optimizer_v2, optimizer_kwargs
 from timm.scheduler import create_scheduler_v2, scheduler_kwargs
 from timm.utils import ApexScaler, NativeScaler
 
 from optimizers.kfac2 import KFAC
 from optimizers.eva import Eva
 
-
 try:
     from apex import amp
     from apex.parallel import DistributedDataParallel as ApexDDP
     from apex.parallel import convert_syncbn_model
+
     has_apex = True
 except ImportError:
     has_apex = False
@@ -61,18 +61,19 @@ except AttributeError:
 
 try:
     import wandb
+
     has_wandb = True
 except ImportError:
     has_wandb = False
 
 try:
     from functorch.compile import memory_efficient_fusion
+
     has_functorch = True
 except ImportError as e:
     has_functorch = False
 
 has_compile = hasattr(torch, 'compile')
-
 
 _logger = logging.getLogger('train')
 
@@ -81,7 +82,6 @@ _logger = logging.getLogger('train')
 config_parser = parser = argparse.ArgumentParser(description='Training Config', add_help=False)
 parser.add_argument('-c', '--config', default='', type=str, metavar='FILE',
                     help='YAML config file specifying default arguments')
-
 
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
 
@@ -179,17 +179,13 @@ group.add_argument('--clip-mode', type=str, default='norm',
                    help='Gradient clipping mode. One of ("norm", "value", "agc")')
 group.add_argument('--layer-decay', type=float, default=None,
                    help='layer-wise learning rate decay (default: None)')
-group.add_argument('--damping', default=1.0, type=float, metavar='DAMPING',
-                   help='KFAC variants Damping (default: None, use opt default)')
-#group.add_argument('--update', default=5, type=int, metavar='UPDATE FREQ',
-#                   help='MAC/SMAC Update Frequency (default: None, use opt default)')
-group.add_argument('--tinv', default=None, type=int, metavar='TINV',
-                   help='KFAC variants Update Frequency (default: None, use opt default)')
-group.add_argument('--rank_size', default=10, type=int, metavar='SKETCH SIZE',
+group.add_argument('--damping', type=float, default=1.0, help='Damping')
+group.add_argument('--tcov', type=int, default=5, help='Tcov')
+group.add_argument('--tinv', type=int, default=5, help='Tinv')
+group.add_argument('--stat_decay', type=float, default=0.95, help='Statistic decay factor')
+group.add_argument('--rank_size', default=10, type=int,
                    help='NysAct sketch size (default: None, use opt default)')
 group.add_argument('--opt-kwargs', nargs='*', default={}, action=utils.ParseKwargs)
-
-
 
 # Learning rate schedule parameters
 group = parser.add_argument_group('Learning rate schedule parameters')
@@ -675,10 +671,11 @@ def main():
         use_multi_epochs_loader=args.use_multi_epochs_loader,
         worker_seeding=args.worker_seeding,
     )
-    
+
     if args.opt.lower() in ['mac', 'smac']:
+        # if args.opt.lower() in ['smac']:
         optimizer._configure(loader_train, model, device)
-    
+
     eval_workers = args.workers
     if args.distributed and ('tfds' in args.dataset or 'wds' in args.dataset):
         # FIXME reduces validation padding issues when using TFDS, WDS w/ workers and distributed training
@@ -786,7 +783,7 @@ def main():
         preconditioner = Eva(model, lr=args.lr, damping=0.03, fac_update_freq=5, kfac_update_freq=5)
     elif args.opt.lower() in ['kfac']:
         preconditioner = KFAC(model, lr=args.lr, damping=0.03, fac_update_freq=5, kfac_update_freq=5)
-    
+
     try:
         _start_time_ = time.time()
         for epoch in range(start_epoch, num_epochs):
@@ -811,10 +808,10 @@ def main():
                 mixup_fn=mixup_fn,
                 preconditioner=preconditioner,
             )
-            
+
             MB = 1024.0 * 1024.0
             print(torch.cuda.max_memory_allocated() / MB)
-            
+
             if args.distributed and args.dist_bn in ('broadcast', 'reduce'):
                 if utils.is_primary(args):
                     _logger.info("Distributing BatchNorm running means and vars")
@@ -868,10 +865,11 @@ def main():
 
     if best_metric is not None:
         _logger.info('*** Best metric: {0} (epoch {1})'.format(best_metric, best_epoch))
-    
+
     _total_time_ = time.time() - _start_time_
     total_time_str = str(timedelta(seconds=int(_total_time_)))
     print(f"Training time {total_time_str}")
+
 
 def train_one_epoch(
         epoch,
@@ -914,7 +912,7 @@ def train_one_epoch(
     data_start_time = update_start_time = time.time()
     optimizer.zero_grad()
     update_sample_count = 0
-    
+
     for batch_idx, (input, target) in enumerate(loader):
         last_batch = batch_idx == last_batch_idx
         need_update = last_batch or (batch_idx + 1) % accum_steps == 0
@@ -961,7 +959,7 @@ def train_one_epoch(
                             mode=args.clip_mode,
                         )
                     if args.opt.lower() in ['eva', 'kfac'] and preconditioner is not None:
-                    #if args.opt.lower() in ['eva'] and preconditioner is not None:
+                        # if args.opt.lower() in ['eva'] and preconditioner is not None:
                         preconditioner.step()
                     optimizer.step()
 
