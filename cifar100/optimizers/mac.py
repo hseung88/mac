@@ -99,7 +99,7 @@ class MAC(Optimizer):
         stat_decay = group['stat_decay']
 
         # If the current module is the qkv layer, extract q and k from _forward_output
-        if module == getattr(self.model, 'qkv', None):
+        if 'attn.qkv' in self.layer_map[module]['name']:
             # _forward_output is a tensor of shape [B, N, 3 * dim].
             B, N, three_dim = _forward_output.shape
             # The attention module typically has num_heads and head_dim attributes
@@ -162,15 +162,13 @@ class MAC(Optimizer):
             self.emastep += 1
 
         for layer in self.layer_map:
-            print(layer)
-            print(self.layer_map[layer])
             if isinstance(layer, (nn.Linear, nn.Conv2d, nn.LayerNorm)) and layer.weight.grad is not None:
                 state = self.state[layer]
                 grad_mat = reshape_grad(layer)
 
                 if layer == self.first_layer:
                     A_inv = self.input_cov_inv.to(grad_mat.dtype)
-                elif layer == getattr(self.model, 'qkv', None):
+                elif 'attn.qkv' in self.layer_map[layer]['name']:
                     three_d, input_dim = grad_mat.shape
                     d = three_d // 3
 
