@@ -129,7 +129,7 @@ class MAC(Optimizer):
             # _forward_output is a tensor of shape [B, N, 3 * dim]
             B, N, three_dim = _forward_output.shape
             # The attention module typically has num_heads and head_dim attributes
-            num_heads = self.model.num_heads
+            num_heads = self.model.blocks[0].attn.num_heads
             head_dim = self.model.embed_dim // num_heads
             # Reshape and permute to separate the qkv tensor
             qkv = _forward_output.reshape(B, N, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
@@ -187,7 +187,7 @@ class MAC(Optimizer):
                 if 'attn.qkv' in self.layer_map[layer]['name']:
                     three_d, input_dim = grad_mat.shape
                     embed_dim = self.model.embed_dim
-                    num_heads = self.model.num_heads
+                    num_heads = self.model.blocks[0].attn.num_heads
                     head_dim = embed_dim // num_heads
 
                     # Split grad_mat into q, k, and v parts.
