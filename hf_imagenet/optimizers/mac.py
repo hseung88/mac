@@ -123,13 +123,13 @@ class MAC(Optimizer):
         if attn_qkv:
             actv_b_avg = actv.view(B, N, actv.size(-1)).mean(dim=0)  # shape: [N, input_dim]
 
-            out = _forward_output.detach().clone()
+            qkv_out = _forward_output.detach().clone()
             # _forward_output is assumed to be [B, N, 3 * dim]
-            B, N, three_dim = out.shape
+            B, N, three_dim = qkv_out.shape
             num_heads = self.model.blocks[0].attn.num_heads
             head_dim = self.model.embed_dim // num_heads
             # Reshape and permute to get q, k, v separated.
-            qkv = out.reshape(B, N, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
+            qkv = qkv_out.reshape(B, N, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
             q, k, _ = qkv.unbind(0)  # Each is [B, num_heads, N, head_dim]
 
             scale = 1.0 / math.sqrt(head_dim)
