@@ -101,16 +101,16 @@ class MAC(Optimizer):
         actv = forward_input[0].data
         if isinstance(module, nn.Conv2d):
             depthwise = module.groups == actv.size(1)
-            actv_processed = extract_patches(actv, module.kernel_size, module.stride, module.padding, depthwise)
+            actv = extract_patches(actv, module.kernel_size, module.stride, module.padding, depthwise)
         elif isinstance(module, nn.Linear):
-            if actv.ndim > 2:
-                actv_processed = actv.view(-1, actv.size(-1))
+            if actv.ndim > 2:  # for Linear layers in transformers
+                actv = actv.view(-1, actv.size(-1))
 
         if isinstance(module, (nn.Conv2d, nn.Linear)) and module.bias is not None:
-            ones = torch.ones((actv_processed.size(0), 1), device=actv_processed.device, dtype=actv_processed.dtype)
-            actv_processed = torch.cat([actv_processed, ones], dim=1)
+            ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)
+            actv = torch.cat([actv, ones], dim=1)
 
-        avg_actv = actv_processed.mean(dim=0) # shape: [input_dim]
+        avg_actv = actv.mean(dim=0)
 
         state = self.state[module]
         if 'exp_avg' not in state:
@@ -119,6 +119,7 @@ class MAC(Optimizer):
 
         # If the current module is the qkv layer, extract q and k from _forward_output
         if 'attn.qkv' in self.layer_map[module]['name']:
+            actv = forward_input[0].data
             actv_b_avg = actv.mean(dim=0)
             if module.bias is not None:
                 ones = torch.ones((actv_b_avg.size(0), 1), device=actv_b_avg.device, dtype=actv_b_avg.dtype)
