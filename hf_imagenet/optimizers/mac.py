@@ -195,7 +195,6 @@ class MAC(Optimizer):
                         #state['A_inv'].div_(damping)
 
                     A_inv = state['A_inv'].to(grad_mat.dtype)
-                    print(A_inv.shape)
 
                 if 'attn.qkv' in self.layer_map[layer]['name']:
                     embed_dim = self.model.embed_dim
@@ -219,7 +218,6 @@ class MAC(Optimizer):
                         state['V_inv'].sub_(torch.outer(exp_avg_v, exp_avg_v).div_(damping + sq_norm_v))
 
                     V_inv = state['V_inv']
-                    print(V_inv.shape)
 
                     q_grad_precond = q_grad_full @ A_inv
                     k_grad_precond = k_grad_full @ A_inv
@@ -228,19 +226,12 @@ class MAC(Optimizer):
                     new_grad = torch.cat([q_grad_precond, k_grad_precond, v_grad_precond], dim=0)
                     grad_mat = new_grad
 
-            if 'attn.qkv' in self.layer_map[layer]['name']:
-                v = grad_mat
-            else:
-                v = grad_mat @ A_inv
+                if 'attn.qkv' in self.layer_map[layer]['name']:
+                    v = grad_mat
+                else:
+                    v = grad_mat @ A_inv
             if layer.bias is not None:
                 v = [v[:, :-1], v[:, -1:]]
-                expected_w_shape = layer.weight.shape
-                expected_b_shape = layer.bias.shape
-                # Print debugging info before copying
-                print(f"[DEBUG] Layer: {self.layer_map[layer].get('name', str(layer))}")
-                print(f"[DEBUG] weight shape: {expected_w_shape}, bias shape: {expected_b_shape}")
-                print(
-                    f"[DEBUG] v_weight shape: {v[0].shape}, v_bias shape: {v[1].shape}")
                 layer.weight.grad.data.copy_(v[0].view_as(layer.weight))
                 layer.bias.grad.data.copy_(v[1].view_as(layer.bias))
             else:
