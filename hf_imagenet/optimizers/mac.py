@@ -87,7 +87,7 @@ class MAC(Optimizer):
             self,
             module: nn.Module,
             forward_input: List[torch.Tensor],
-            _forward_output: List[torch.Tensor],
+            _forward_output: torch.Tensor,
     ):
         if not module.training or not torch.is_grad_enabled():
             return
@@ -123,7 +123,7 @@ class MAC(Optimizer):
         if attn_qkv:
             actv_b_avg = actv.view(B, N, actv.size(-1)).mean(dim=0)  # shape: [N, input_dim]
 
-            qkv_out = _forward_output[0].detach().clone()
+            qkv_out = _forward_output.detach().clone()
             # _forward_output is assumed to be [B, N, 3 * dim]
             B, N, three_dim = qkv_out.shape
             num_heads = self.model.blocks[0].attn.num_heads
