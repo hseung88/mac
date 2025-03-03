@@ -57,7 +57,6 @@ class MAC(Optimizer):
            net = net.module
         # Directly capture the first layer (patch embedding) of ViTs
         first_layer = net.patch_embed.proj
-        print(device)
 
         with torch.no_grad():
             for images, _ in train_loader:
@@ -105,8 +104,8 @@ class MAC(Optimizer):
             actv = extract_patches(actv, module.kernel_size, module.stride, module.padding, depthwise)
         elif isinstance(module, nn.Linear):
             if actv.ndim > 2:  # for Linear layers in transformers
-                actv = actv.view(-1, actv.size(-1))
                 actv_b_avg = actv.mean(dim=0)
+                actv = actv.view(-1, actv.size(-1))
         elif isinstance(module, nn.LayerNorm):
             if actv.ndim > 2:
                 actv = actv.view(-1, actv.size(-1))
@@ -127,15 +126,14 @@ class MAC(Optimizer):
         state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
 
         # If the current module is the qkv layer, extract q and k from _forward_output
-        qkv = _forward_output
         if 'attn.qkv' in self.layer_map[module]['name']:
             # _forward_output is a tensor of shape [B, N, 3 * dim]
-            B, N, three_dim = qkv.shape
+            B, N, three_dim = _forward_output.shape
             # The attention module typically has num_heads and head_dim attributes
             num_heads = self.model.blocks[0].attn.num_heads
             head_dim = self.model.embed_dim // num_heads
             # Reshape and permute to separate the qkv tensor
-            qkv = qkv.reshape(B, N, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
+            qkv = _forward_output.reshape(B, N, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
             q, k, _ = qkv.unbind(0)  # q, k shape: [B, num_heads, N, head_dim]
 
             # Compute attention scores:
