@@ -126,7 +126,7 @@ class MAC(Optimizer):
         state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
 
         # If the current module is the qkv layer, extract q and k from _forward_output
-        qkv = _forward_output[0].data
+        qkv = _forward_output
         if 'attn.qkv' in self.layer_map[module]['name']:
             # _forward_output is a tensor of shape [B, N, 3 * dim]
             B, N, three_dim = qkv.shape
