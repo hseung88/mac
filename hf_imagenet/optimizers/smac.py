@@ -66,7 +66,7 @@ class SMAC(Optimizer):
 
         # Directly capture the first layer (patch embedding) of ViTs
         first_layer = net.patch_embed.proj
-        print(device)
+
         with torch.no_grad():
             for images, _ in train_loader:
                 images = images.to(device, non_blocking=True)
