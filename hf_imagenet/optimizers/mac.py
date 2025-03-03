@@ -146,14 +146,18 @@ class MAC(Optimizer):
             attn = attn.mean(dim=(0, 1))  # shape: [N, N]
             avg_attn = attn.mean(dim=-1, keepdim=True)  # shape: [N, 1]
 
-            print('actv_b_avg.t():', actv_b_avg.t().shape)
-            print('avg_attn:', avg_attn.shape)
+            # Check shapes to avoid broadcast:
+            #   actv_b_avg should be [N, (d+1)] => .t() => [(d+1), N]
+            #   avg_attn should be [N, 1]
+            # so the product => [(d+1) x 1]
+            if actv_b_avg.shape[0] != avg_attn.shape[0]:
+                raise RuntimeError(
+                    f"Dimension mismatch! actv_b_avg has shape {actv_b_avg.shape}, "
+                    f"but avg_attn has shape {avg_attn.shape}. "
+                    "They must share the same 'N' dimension."
+                )
 
-            #v_input = torch.matmul(actv.transpose(0, 1).unsqueeze(0), avg_attn).squeeze(-1) # shape: [num_heads, input_dim]
-            v_input = torch.matmul(actv_b_avg.t(), avg_attn)
-            print('v_input:', v_input.shape)
-            v_input = v_input.squeeze(-1)  # shape: [input_dim]
-            print('v_input_squeeze:', v_input.shape)
+            v_input = torch.matmul(actv.transpose(0, 1).unsqueeze(0), avg_attn).squeeze(-1) # shape: [num_heads, input_dim]
 
             state = self.state[module]
             if 'exp_avg_v' not in state:
