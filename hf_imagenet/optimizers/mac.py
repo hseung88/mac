@@ -136,10 +136,14 @@ class MAC(Optimizer):
             R = (q @ k.transpose(-2, -1)) * scale  # [B, num_heads, N, N]
             attn = torch.softmax(R, dim=-1)
             #avg_attn = attn.mean(dim=(0, 1, 3))  # [N, ]
-            avg_attn_per_head = attn.mean(dim=(0, 3)) # [num_heads, N]
+            attn = attn.mean(dim=0)  # shape: [num_heads, N, N]
+            avg_attn = attn.mean(dim=-1, keepdim=True)  # shape: [num_heads, N, 1]
+
+            v_input = torch.matmul(actv.transpose(0, 1).unsqueeze(0), avg_attn).squeeze(-1)
+            #avg_attn_per_head = attn.mean(dim=(0, 3)) # [num_heads, N]
 
             #v_input = actv_b_avg.t() @ avg_attn
-            v_input = actv_b_avg.t() @ avg_attn_per_head
+            #v_input = actv_b_avg.t() @ avg_attn_per_head
 
             state = self.state[module]
             if 'exp_avg_v' not in state:
