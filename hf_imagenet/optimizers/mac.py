@@ -123,6 +123,7 @@ class MAC(Optimizer):
         if attn_qkv:
             actv = actv.view(B, N, actv.size(-1))
             actv_b_avg = actv.mean(dim=0)  # shape: [N, input_dim]
+            print("actv_b_avg", actv_b_avg.shape)
 
             # _forward_output is assumed to be [B, N, 3 * dim]
             B, N, three_dim = _forward_output.shape
@@ -135,11 +136,12 @@ class MAC(Optimizer):
             scale = 1.0 / math.sqrt(head_dim)
             R = (q @ k.transpose(-2, -1)) * scale  # [B, num_heads, N, N]
             attn = torch.softmax(R, dim=-1)
-            attn = attn.mean(dim=(0, 1))  # [N, N]
-            avg_attn = attn.mean(dim=1)  # [N, ]
+            avg_attn = attn.mean(dim=(0, 1, 3))  # [N, ]
 
             v_input = actv_b_avg.t() @ avg_attn
+            print("v_input", v_input.shape)
 
+            state = self.state[module]
             if 'exp_avg_v' not in state:
                 state['exp_avg_v'] = torch.zeros_like(v_input, device=v_input.device)
             state['exp_avg_v'].mul_(stat_decay).add_(v_input, alpha=1 - stat_decay)
@@ -182,7 +184,7 @@ class MAC(Optimizer):
 
                     A_inv = state['A_inv'].to(grad_mat.dtype)
 
-                if 'attn.qkv' in self.layer_map[layer]['name']:
+                if layer != self.first_layer and 'attn.qkv' in self.layer_map[layer]['name']:
                     embed_dim = self.model.embed_dim
 
                     # Split grad_mat into q, k, and v parts
