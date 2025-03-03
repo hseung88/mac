@@ -58,7 +58,7 @@ def reshape_grad(layer):
         grad_mat = g
 
     # include the bias into the weight
-    if hasattr(layer, 'bias') and layer.bias is not None:
+    if layer.bias is not None:
         grad_mat = torch.cat([grad_mat, layer.bias.grad.view(-1, 1)], 1)
 
     return grad_mat

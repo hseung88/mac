@@ -97,7 +97,7 @@ class MAC(Optimizer):
         group = self.param_groups[0]
         stat_decay = group['stat_decay']
 
-        actv = forward_input[0].data
+        actv = forward_input[0]..detach().clone()
         attn_qkv = 'attn.qkv' in self.layer_map[module]['name']
 
         if isinstance(module, nn.Conv2d):
@@ -122,14 +122,14 @@ class MAC(Optimizer):
 
         if attn_qkv:
             actv_b_avg = actv.view(B, N, actv.size(-1)).mean(dim=0)  # shape: [N, input_dim]
-            print("actv_b_avg", actv_b_avg.shape)
 
+            out = _forward_output.detach().clone()
             # _forward_output is assumed to be [B, N, 3 * dim]
-            B, N, three_dim = _forward_output.shape
+            B, N, three_dim = out.shape
             num_heads = self.model.blocks[0].attn.num_heads
             head_dim = self.model.embed_dim // num_heads
             # Reshape and permute to get q, k, v separated.
-            qkv = _forward_output.reshape(B, N, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
+            qkv = out.reshape(B, N, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
             q, k, _ = qkv.unbind(0)  # Each is [B, num_heads, N, head_dim]
 
             scale = 1.0 / math.sqrt(head_dim)
@@ -138,7 +138,6 @@ class MAC(Optimizer):
             avg_attn = attn.mean(dim=(0, 1, 3))  # [N, ]
 
             v_input = actv_b_avg.t() @ avg_attn
-            print("v_input", v_input.shape)
 
             state = self.state[module]
             if 'exp_avg_v' not in state:
