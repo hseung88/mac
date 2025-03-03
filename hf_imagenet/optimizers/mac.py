@@ -130,7 +130,7 @@ class MAC(Optimizer):
             num_heads = self.model.blocks[0].attn.num_heads
             head_dim = self.model.embed_dim // num_heads
             # Reshape and permute to separate the qkv tensor
-            qkv = _forward_output.reshape(B, N, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
+            qkv = _forward_output.detach().clone().reshape(B, N, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
             q, k, _ = qkv.unbind(0)  # q, k shape: [B, num_heads, N, head_dim]
 
             # Compute attention scores:
