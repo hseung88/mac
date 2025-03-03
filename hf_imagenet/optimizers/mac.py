@@ -97,7 +97,7 @@ class MAC(Optimizer):
         group = self.param_groups[0]
         stat_decay = group['stat_decay']
 
-        actv = forward_input[0]..detach().clone()
+        actv = forward_input[0].detach().clone()
         attn_qkv = 'attn.qkv' in self.layer_map[module]['name']
 
         if isinstance(module, nn.Conv2d):
