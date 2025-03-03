@@ -103,13 +103,8 @@ class MAC(Optimizer):
             depthwise = module.groups == actv.size(1)
             actv_processed = extract_patches(actv, module.kernel_size, module.stride, module.padding, depthwise)
         elif isinstance(module, nn.Linear):
-            actv_processed = actv.view(-1, actv.size(-1))
-        elif isinstance(module, nn.LayerNorm):
-            actv_processed = actv.view(-1, actv.size(-1))
-            # Standardize inputs to mimic LayerNorm normalization.
-            mean = actv_processed.mean(dim=-1, keepdim=True)
-            var = actv_processed.var(dim=-1, unbiased=False, keepdim=True)
-            actv_processed = (actv_processed - mean) / torch.sqrt(var + module.eps)
+            if actv.ndim > 2:
+                actv_processed = actv.view(-1, actv.size(-1))
 
         if isinstance(module, (nn.Conv2d, nn.Linear)) and module.bias is not None:
             ones = torch.ones((actv_processed.size(0), 1), device=actv_processed.device, dtype=actv_processed.dtype)
@@ -178,7 +173,7 @@ class MAC(Optimizer):
             self.emastep += 1
 
         for layer in self.layer_map:
-            if isinstance(layer, (nn.Linear, nn.Conv2d, nn.LayerNorm)) and layer.weight.grad is not None:
+            if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
                 state = self.state[layer]
                 grad_mat = reshape_grad(layer)
 
@@ -230,21 +225,17 @@ class MAC(Optimizer):
                     new_grad = torch.cat([q_grad_precond, k_grad_precond, v_grad_precond], dim=0)
                     grad_mat = new_grad
 
-            if isinstance(layer, nn.LayerNorm):
-                grad_precond = A_inv @ grad_mat
-                layer.weight.grad.data.copy_(grad_precond.view_as(layer.weight))
+            if 'attn.qkv' in self.layer_map[layer]['name']:
+                grad_precond = grad_mat
             else:
-                if 'attn.qkv' in self.layer_map[layer]['name']:
-                    grad_precond = grad_mat
-                else:
-                    grad_precond = grad_mat @ A_inv
-                if layer.bias is not None:
-                    grad_precond_weight = grad_precond[:, :-1]
-                    grad_precond_bias = grad_precond[:, -1:]
-                    layer.weight.grad.data.copy_(grad_precond_weight.view_as(layer.weight))
-                    layer.bias.grad.data.copy_(grad_precond_bias.view_as(layer.bias))
-                else:
-                    layer.weight.grad.data.copy_(grad_precond.view_as(layer.weight.grad))
+                grad_precond = grad_mat @ A_inv
+            if layer.bias is not None:
+                grad_precond_weight = grad_precond[:, :-1]
+                grad_precond_bias = grad_precond[:, -1:]
+                layer.weight.grad.data.copy_(grad_precond_weight.view_as(layer.weight))
+                layer.bias.grad.data.copy_(grad_precond_bias.view_as(layer.bias))
+            else:
+                layer.weight.grad.data.copy_(grad_precond.view_as(layer.weight.grad))
 
         momentum_step(self)
         self._step += 1
