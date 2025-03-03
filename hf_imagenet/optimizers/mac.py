@@ -120,7 +120,7 @@ class MAC(Optimizer):
         # If the current module is the qkv layer, extract q and k from _forward_output
         if 'attn.qkv' in self.layer_map[module]['name']:
             actv = forward_input[0].detach().clone()
-            actv_b_avg = actv.mean(dim=0)
+            actv_b_avg = actv.mean(dim=0) # shape: [N, input_dim]
             if module.bias is not None:
                 ones = torch.ones((actv_b_avg.size(0), 1), device=actv_b_avg.device, dtype=actv_b_avg.dtype)
                 actv_b_avg = torch.cat([actv_b_avg, ones], dim=1)
@@ -195,6 +195,7 @@ class MAC(Optimizer):
                         #state['A_inv'].div_(damping)
 
                     A_inv = state['A_inv'].to(grad_mat.dtype)
+                    print(A_inv.shape)
 
                 if 'attn.qkv' in self.layer_map[layer]['name']:
                     embed_dim = self.model.embed_dim
@@ -218,6 +219,7 @@ class MAC(Optimizer):
                         state['V_inv'].sub_(torch.outer(exp_avg_v, exp_avg_v).div_(damping + sq_norm_v))
 
                     V_inv = state['V_inv']
+                    print(V_inv.shape)
 
                     q_grad_precond = q_grad_full @ A_inv
                     k_grad_precond = k_grad_full @ A_inv
