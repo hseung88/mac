@@ -99,15 +99,50 @@ class MAC(Optimizer):
         stat_decay = group['stat_decay']
 
         actv = forward_input[0].data
-        if isinstance(module, nn.Conv2d):
+        # If the current module is the qkv layer, extract q and k from _forward_output
+        if 'attn.qkv' in self.layer_map[module]['name']:
+            actv_b_avg = actv.mean(dim=0)
+            if module.bias is not None:
+                ones = torch.ones((actv_b_avg.size(0), 1), device=actv_b_avg.device, dtype=actv_b_avg.dtype)
+                actv_b_avg = torch.cat([actv_b_avg, ones], dim=1)
+            # _forward_output is a tensor of shape [B, N, 3 * dim]
+            B, N, three_dim = _forward_output.shape
+            # The attention module typically has num_heads and head_dim attributes
+            num_heads = self.model.blocks[0].attn.num_heads
+            head_dim = self.model.embed_dim // num_heads
+            # Reshape and permute to separate the qkv tensor
+            qkv = _forward_output.reshape(B, N, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
+            q, k, _ = qkv.unbind(0)  # q, k shape: [B, num_heads, N, head_dim]
+
+            # Compute attention scores:
+            scale = 1.0 / math.sqrt(head_dim)
+            R = (q @ k.transpose(-2, -1)) * scale  # shape: [B, num_heads, N, N]
+            attn = torch.softmax(R, dim=-1)
+            attn = attn.mean(dim=(0, 1))  # shape: [N, N]
+            avg_attn = attn.mean(dim=-1)  # shape: [N, ]
+
+            # Check shapes to avoid broadcast:
+            #   actv_b_avg should be [N, (d+1)] => .t() => [(d+1), N]
+            #   avg_attn should be [N, 1]
+            # so the product => [(d+1) x 1]
+            if actv_b_avg.shape[0] != avg_attn.shape[0]:
+                raise RuntimeError(
+                    f"Dimension mismatch! actv_b_avg has shape {actv_b_avg.shape}, "
+                    f"but avg_attn has shape {avg_attn.shape}. "
+                    "They must share the same 'N' dimension."
+                )
+
+            v_input = actv_b_avg.t() @ avg_attn # shape: [input_dim]
+
+            state = self.state[module]
+            if 'exp_avg_v' not in state:
+                state['exp_avg_v'] = torch.zeros_like(v_input, device=v_input.device)
+            state['exp_avg_v'].mul_(stat_decay).add_(v_input, alpha=1 - stat_decay)
+        elif isinstance(module, nn.Conv2d):
             depthwise = module.groups == actv.size(1)
             actv = extract_patches(actv, module.kernel_size, module.stride, module.padding, depthwise)
         elif isinstance(module, nn.Linear):
             if actv.ndim > 2:  # for Linear layers in transformers
-                actv_b_avg = actv.mean(dim=0)
-                if module.bias is not None:
-                    ones = torch.ones((actv_b_avg.size(0), 1), device=actv_b_avg.device, dtype=actv_b_avg.dtype)
-                    actv_b_avg = torch.cat([actv_b_avg, ones], dim=1)
                 actv = actv.view(-1, actv.size(-1))
         elif isinstance(module, nn.LayerNorm):
             if actv.ndim > 2:
@@ -127,42 +162,6 @@ class MAC(Optimizer):
         if 'exp_avg' not in state:
             state['exp_avg'] = torch.zeros_like(avg_actv, device=avg_actv.device)
         state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
-
-        # If the current module is the qkv layer, extract q and k from _forward_output
-        if 'attn.qkv' in self.layer_map[module]['name']:
-            # _forward_output is a tensor of shape [B, N, 3 * dim]
-            B, N, three_dim = _forward_output.shape
-            # The attention module typically has num_heads and head_dim attributes
-            num_heads = self.model.blocks[0].attn.num_heads
-            head_dim = self.model.embed_dim // num_heads
-            # Reshape and permute to separate the qkv tensor
-            qkv = _forward_output.reshape(B, N, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
-            q, k, _ = qkv.unbind(0)  # q, k shape: [B, num_heads, N, head_dim]
-
-            # Compute attention scores:
-            scale = 1.0 / math.sqrt(head_dim)
-            R = (q @ k.transpose(-2, -1)) * scale # shape: [B, num_heads, N, N]
-            attn = torch.softmax(R, dim=-1)
-            attn = attn.mean(dim=(0, 1))  # shape: [N, N]
-            avg_attn = attn.mean(dim=-1, keepdim=True)  # shape: [N, 1]
-
-            # Check shapes to avoid broadcast:
-            #   actv_b_avg should be [N, (d+1)] => .t() => [(d+1), N]
-            #   avg_attn should be [N, 1]
-            # so the product => [(d+1) x 1]
-            if actv_b_avg.shape[0] != avg_attn.shape[0]:
-                raise RuntimeError(
-                    f"Dimension mismatch! actv_b_avg has shape {actv_b_avg.shape}, "
-                    f"but avg_attn has shape {avg_attn.shape}. "
-                    "They must share the same 'N' dimension."
-                )
-
-            v_input = torch.matmul(actv.transpose(0, 1).unsqueeze(0), avg_attn).squeeze(-1) # shape: [num_heads, input_dim]
-
-            state = self.state[module]
-            if 'exp_avg_v' not in state:
-                state['exp_avg_v'] = torch.zeros_like(v_input, device=v_input.device)
-            state['exp_avg_v'].mul_(stat_decay).add_(v_input, alpha=1 - stat_decay)
 
     @torch.no_grad()
     def step(self, closure=None):
