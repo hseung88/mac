@@ -91,7 +91,6 @@ class MAC(Optimizer):
     ):
         if not module.training or not torch.is_grad_enabled():
             return
-
         if (self._step % self.Tcov) != 0:
             return
 
@@ -99,12 +98,14 @@ class MAC(Optimizer):
         stat_decay = group['stat_decay']
 
         actv = forward_input[0].data
+        attn_qkv = 'attn.qkv' in self.layer_map[module]['name']
+
         if isinstance(module, nn.Conv2d):
             depthwise = module.groups == actv.size(1)
             actv = extract_patches(actv, module.kernel_size, module.stride, module.padding, depthwise)
         elif isinstance(module, nn.Linear):
-            if actv.ndim > 2:  # for Linear layers in transformers
-                if 'attn.qkv' in self.layer_map[module]['name']:
+            if actv.ndim > 2:  # Expect shape [B, N, d] for transformer inputs.
+                if attn_qkv:
                     B, N, D = actv.shape
                 actv = actv.view(-1, actv.size(-1))
 
@@ -112,9 +113,10 @@ class MAC(Optimizer):
             ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)
             actv = torch.cat([actv, ones], dim=1)
 
-        if 'attn.qkv' in self.layer_map[module]['name']:
+        if attn_qkv:
             actv = actv.view(B, N, actv.size(-1))
             actv_b_avg = actv.mean(dim=0)  # shape: [N, input_dim]
+            avg_actv = actv_b_avg
         else:
             avg_actv = actv.mean(dim=0)
 
@@ -123,27 +125,23 @@ class MAC(Optimizer):
             state['exp_avg'] = torch.zeros_like(avg_actv, device=avg_actv.device)
         state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
 
-        # If the current module is the qkv layer, extract q and k from _forward_output
-        if 'attn.qkv' in self.layer_map[module]['name']:
-            # _forward_output is a tensor of shape [B, N, 3 * dim]
+        if attn_qkv:
+            # _forward_output is assumed to be [B, N, 3 * dim]
             B, N, three_dim = _forward_output.shape
-            # The attention module typically has num_heads and head_dim attributes
             num_heads = self.model.blocks[0].attn.num_heads
             head_dim = self.model.embed_dim // num_heads
-            # Reshape and permute to separate the qkv tensor
+            # Reshape and permute to get q, k, v separated.
             qkv = _forward_output.reshape(B, N, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
-            q, k, _ = qkv.unbind(0)  # q, k shape: [B, num_heads, N, head_dim]
+            q, k, _ = qkv.unbind(0)  # Each is [B, num_heads, N, head_dim]
 
-            # Compute attention scores:
             scale = 1.0 / math.sqrt(head_dim)
-            R = (q @ k.transpose(-2, -1)) * scale  # shape: [B, num_heads, N, N]
+            R = (q @ k.transpose(-2, -1)) * scale  # [B, num_heads, N, N]
             attn = torch.softmax(R, dim=-1)
-            attn = attn.mean(dim=(0, 1))  # shape: [N, N]
-            avg_attn = attn.mean(dim=-1)  # shape: [N, ]
+            attn = attn.mean(dim=(0, 1))  # [N, N]
+            avg_attn = attn.mean(dim=-1, keepdim=True)  # [N, 1]
 
-            v_input = actv_b_avg.t() @ avg_attn  # shape: [input_dim]
+            v_input = (actv_b_avg.t() @ avg_attn).squeeze(-1)
 
-            state = self.state[module]
             if 'exp_avg_v' not in state:
                 state['exp_avg_v'] = torch.zeros_like(v_input, device=v_input.device)
             state['exp_avg_v'].mul_(stat_decay).add_(v_input, alpha=1 - stat_decay)
