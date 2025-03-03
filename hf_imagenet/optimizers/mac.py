@@ -98,12 +98,17 @@ class MAC(Optimizer):
         group = self.param_groups[0]
         stat_decay = group['stat_decay']
 
-        actv = forward_input[0].detach().clone()
+        actv = forward_input[0].data
         if isinstance(module, nn.Conv2d):
             depthwise = module.groups == actv.size(1)
             actv = extract_patches(actv, module.kernel_size, module.stride, module.padding, depthwise)
         elif isinstance(module, nn.Linear):
             if actv.ndim > 2:  # for Linear layers in transformers
+                if 'attn.qkv' in self.layer_map[module]['name']:
+                    actv_b_avg = actv.mean(dim=0)  # shape: [N, input_dim]
+                    if module.bias is not None:
+                        ones = torch.ones((actv_b_avg.size(0), 1), device=actv_b_avg.device, dtype=actv_b_avg.dtype)
+                        actv_b_avg = torch.cat([actv_b_avg, ones], dim=1)
                 actv = actv.view(-1, actv.size(-1))
 
         if isinstance(module, (nn.Conv2d, nn.Linear)) and module.bias is not None:
@@ -119,18 +124,13 @@ class MAC(Optimizer):
 
         # If the current module is the qkv layer, extract q and k from _forward_output
         if 'attn.qkv' in self.layer_map[module]['name']:
-            actv = forward_input[0].detach().clone()
-            actv_b_avg = actv.mean(dim=0) # shape: [N, input_dim]
-            if module.bias is not None:
-                ones = torch.ones((actv_b_avg.size(0), 1), device=actv_b_avg.device, dtype=actv_b_avg.dtype)
-                actv_b_avg = torch.cat([actv_b_avg, ones], dim=1)
             # _forward_output is a tensor of shape [B, N, 3 * dim]
             B, N, three_dim = _forward_output.shape
             # The attention module typically has num_heads and head_dim attributes
             num_heads = self.model.blocks[0].attn.num_heads
             head_dim = self.model.embed_dim // num_heads
             # Reshape and permute to separate the qkv tensor
-            qkv = _forward_output.detach().clone().reshape(B, N, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
+            qkv = _forward_output.reshape(B, N, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
             q, k, _ = qkv.unbind(0)  # q, k shape: [B, num_heads, N, head_dim]
 
             # Compute attention scores:
@@ -234,6 +234,13 @@ class MAC(Optimizer):
                 v = grad_mat @ A_inv
             if layer.bias is not None:
                 v = [v[:, :-1], v[:, -1:]]
+                expected_w_shape = layer.weight.shape
+                expected_b_shape = layer.bias.shape
+                # Print debugging info before copying
+                print(f"[DEBUG] Layer: {self.layer_map[layer].get('name', str(layer))}")
+                print(f"[DEBUG] weight shape: {expected_w_shape}, bias shape: {expected_b_shape}")
+                print(
+                    f"[DEBUG] v_weight shape: {v[0].shape}, v_bias shape: {v[1].shape}")
                 layer.weight.grad.data.copy_(v[0].view_as(layer.weight))
                 layer.bias.grad.data.copy_(v[1].view_as(layer.bias))
             else:
