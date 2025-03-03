@@ -105,6 +105,9 @@ class MAC(Optimizer):
         elif isinstance(module, nn.Linear):
             if actv.ndim > 2:  # for Linear layers in transformers
                 actv_b_avg = actv.mean(dim=0)
+                if module.bias is not None:
+                    ones = torch.ones((actv_b_avg.size(0), 1), device=actv_b_avg.device, dtype=actv_b_avg.dtype)
+                    actv_b_avg = torch.cat([actv_b_avg, ones], dim=1)
                 actv = actv.view(-1, actv.size(-1))
         elif isinstance(module, nn.LayerNorm):
             if actv.ndim > 2:
