@@ -104,10 +104,11 @@ class MAC(Optimizer):
             actv = extract_patches(actv, module.kernel_size, module.stride, module.padding, depthwise)
         elif isinstance(module, nn.Linear):
             if actv.ndim > 2:  # for Linear layers in transformers
-                actv = actv.mean(dim=0) # shape: [N, input_dim]
+                actv = actv.view(-1, actv.size(-1))
+                actv_b_avg = actv.mean(dim=0)
         elif isinstance(module, nn.LayerNorm):
             if actv.ndim > 2:
-                actv = actv.mean(dim=0) # shape: [N, input_dim]
+                actv = actv.view(-1, actv.size(-1))
             # Standardize inputs to mimic LayerNorm normalization.
             mean = actv.mean(dim=-1, keepdim=True)
             var = actv.var(dim=-1, unbiased=False, keepdim=True)
@@ -144,7 +145,7 @@ class MAC(Optimizer):
             avg_attn = attn.mean(dim=-1, keepdim=True)  # shape: [N, 1]
 
             #v_input = torch.matmul(actv.transpose(0, 1).unsqueeze(0), avg_attn).squeeze(-1) # shape: [num_heads, input_dim]
-            v_input = torch.matmul(actv.t(), avg_attn).squeeze(-1)  # shape: [input_dim]
+            v_input = torch.matmul(actv_b_avg.t(), avg_attn).squeeze(-1)  # shape: [input_dim]
             print('v_input:', v_input.shape)
 
             state = self.state[module]
