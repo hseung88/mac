@@ -146,6 +146,9 @@ class MAC(Optimizer):
             attn = attn.mean(dim=(0, 1))  # shape: [N, N]
             avg_attn = attn.mean(dim=-1, keepdim=True)  # shape: [N, 1]
 
+            print('actv_b_avg.t():', actv_b_avg.t().shape)
+            print('avg_attn:', avg_attn.shape)
+
             #v_input = torch.matmul(actv.transpose(0, 1).unsqueeze(0), avg_attn).squeeze(-1) # shape: [num_heads, input_dim]
             v_input = torch.matmul(actv_b_avg.t(), avg_attn).squeeze(-1)  # shape: [input_dim]
 
@@ -205,7 +208,6 @@ class MAC(Optimizer):
                         bias_correction = 1.0 - (stat_decay ** self.emastep)
                         # Update per-head inverse preconditioners
                         exp_avg_v = state['exp_avg_v'].div(bias_correction).to(grad_mat.dtype)  # [num_heads, input_dim]
-                        print('exp_avg_v:', exp_avg_v.shape)
                         sq_norm_v = torch.dot(exp_avg_v, exp_avg_v)
 
                         if 'V_inv' not in state:
