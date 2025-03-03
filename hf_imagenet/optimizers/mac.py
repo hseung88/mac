@@ -113,12 +113,7 @@ class MAC(Optimizer):
             ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)
             actv = torch.cat([actv, ones], dim=1)
 
-        if attn_qkv:
-            actv = actv.view(B, N, actv.size(-1))
-            actv_b_avg = actv.mean(dim=0)  # shape: [N, input_dim]
-            avg_actv = actv_b_avg
-        else:
-            avg_actv = actv.mean(dim=0)
+        avg_actv = actv.mean(dim=0)
 
         state = self.state[module]
         if 'exp_avg' not in state:
@@ -126,6 +121,9 @@ class MAC(Optimizer):
         state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
 
         if attn_qkv:
+            actv = actv.view(B, N, actv.size(-1))
+            actv_b_avg = actv.mean(dim=0)  # shape: [N, input_dim]
+
             # _forward_output is assumed to be [B, N, 3 * dim]
             B, N, three_dim = _forward_output.shape
             num_heads = self.model.blocks[0].attn.num_heads
@@ -138,9 +136,9 @@ class MAC(Optimizer):
             R = (q @ k.transpose(-2, -1)) * scale  # [B, num_heads, N, N]
             attn = torch.softmax(R, dim=-1)
             attn = attn.mean(dim=(0, 1))  # [N, N]
-            avg_attn = attn.mean(dim=-1, keepdim=True)  # [N, 1]
+            avg_attn = attn.mean(dim=1)  # [N, ]
 
-            v_input = (actv_b_avg.t() @ avg_attn).squeeze(-1)
+            v_input = actv_b_avg.t() @ avg_attn
 
             if 'exp_avg_v' not in state:
                 state['exp_avg_v'] = torch.zeros_like(v_input, device=v_input.device)
