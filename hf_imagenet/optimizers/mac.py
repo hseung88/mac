@@ -118,6 +118,7 @@ class MAC(Optimizer):
             actv = torch.cat([actv, ones], dim=1)
 
         avg_actv = actv.mean(dim=0) # shape: [input_dim]
+        print(avg_actv.shape)
 
         state = self.state[module]
         if 'exp_avg' not in state:
@@ -146,7 +147,8 @@ class MAC(Optimizer):
             avg_attn = attn.mean(dim=-1, keepdim=True)  # shape: [N, 1]
 
             #v_input = torch.matmul(actv.transpose(0, 1).unsqueeze(0), avg_attn).squeeze(-1) # shape: [num_heads, input_dim]
-            v_input = torch.matmul(actv.t(), avg_attn).squeeze(-1)  # shape: [input_dim, 1]
+            v_input = torch.matmul(actv.t(), avg_attn).squeeze(-1)  # shape: [input_dim]
+            print(v_input.shape)
 
             state = self.state[module]
             if 'exp_avg_v' not in state:
@@ -192,7 +194,7 @@ class MAC(Optimizer):
                     A_inv = state['A_inv'].to(grad_mat.dtype)
 
                 if 'attn.qkv' in self.layer_map[layer]['name']:
-                    #three_d, input_dim = grad_mat.shape
+                    #input_dim = grad_mat.shape
                     embed_dim = self.model.embed_dim
                     #num_heads = self.model.blocks[0].attn.num_heads
                     #head_dim = embed_dim // num_heads
