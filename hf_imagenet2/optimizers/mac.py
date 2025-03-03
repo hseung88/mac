@@ -57,7 +57,6 @@ class MAC(Optimizer):
            net = net.module
         # Directly capture the first layer (patch embedding) of ViTs
         first_layer = net.patch_embed.proj
-        print(device)
 
         with torch.no_grad():
             for images, _ in train_loader:
