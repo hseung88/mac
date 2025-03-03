@@ -54,13 +54,11 @@ def reshape_grad(layer):
 
     if classname == 'Conv2d':
         grad_mat = g.view(g.size(0), -1)  # n_filters * (in_c * kw * kh)
-    elif classname == 'LayerNorm':
-        grad_mat = g.view(-1, 1)  # only weight gradient for LayerNorm
     else:
         grad_mat = g
 
     # include the bias into the weight
-    if classname !='LayerNorm' and hasattr(layer, 'bias') and layer.bias is not None:
+    if layer.bias is not None:
         grad_mat = torch.cat([grad_mat, layer.bias.grad.view(-1, 1)], 1)
 
     return grad_mat
@@ -120,8 +118,7 @@ def grad_layers(module, memo=None, prefix=''):
 
 
 def build_layer_map(model, fwd_hook_fn=None, bwd_hook_fn=None,
-                    supported_layers=(nn.Linear, nn.Conv2d, nn.LayerNorm)):
-                    #supported_layers=(nn.Linear, nn.Conv2d)):
+                    supported_layers=(nn.Linear, nn.Conv2d)):
     layer_map = {}
 
     for layer, prefix, params in grad_layers(model):
