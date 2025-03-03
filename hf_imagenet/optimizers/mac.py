@@ -105,18 +105,18 @@ class MAC(Optimizer):
         elif isinstance(module, nn.Linear):
             if actv.ndim > 2:  # for Linear layers in transformers
                 if 'attn.qkv' in self.layer_map[module]['name']:
-                    actv_b_avg = actv.mean(dim=0)  # shape: [N, input_dim]
-                    if module.bias is not None:
-                        ones = torch.ones((actv_b_avg.size(0), 1), device=actv_b_avg.device, dtype=actv_b_avg.dtype)
-                        actv_b_avg = torch.cat([actv_b_avg, ones], dim=1)
+                    B, N, D = actv.shape
                 actv = actv.view(-1, actv.size(-1))
 
         if isinstance(module, (nn.Conv2d, nn.Linear)) and module.bias is not None:
             ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)
             actv = torch.cat([actv, ones], dim=1)
 
-        avg_actv = actv.mean(dim=0)
-        print("avg_actv:", avg_actv.shape)
+        if 'attn.qkv' in self.layer_map[module]['name']:
+            actv = actv.view(B, N, actv.size(-1))
+            actv_b_avg = actv.mean(dim=0)  # shape: [N, input_dim]
+        else:
+            avg_actv = actv.mean(dim=0)
 
         state = self.state[module]
         if 'exp_avg' not in state:
@@ -141,19 +141,7 @@ class MAC(Optimizer):
             attn = attn.mean(dim=(0, 1))  # shape: [N, N]
             avg_attn = attn.mean(dim=-1)  # shape: [N, ]
 
-            # Check shapes to avoid broadcast:
-            #   actv_b_avg should be [N, (d+1)] => .t() => [(d+1), N]
-            #   avg_attn should be [N, 1]
-            # so the product => [(d+1) x 1]
-            if actv_b_avg.shape[0] != avg_attn.shape[0]:
-                raise RuntimeError(
-                    f"Dimension mismatch! actv_b_avg has shape {actv_b_avg.shape}, "
-                    f"but avg_attn has shape {avg_attn.shape}. "
-                    "They must share the same 'N' dimension."
-                )
-
             v_input = actv_b_avg.t() @ avg_attn  # shape: [input_dim]
-            print("v_input:", v_input.shape)
 
             state = self.state[module]
             if 'exp_avg_v' not in state:
@@ -220,12 +208,6 @@ class MAC(Optimizer):
                         state['V_inv'].sub_(torch.outer(exp_avg_v, exp_avg_v).div_(damping + sq_norm_v))
 
                     V_inv = state['V_inv'].to(grad_mat.dtype)
-
-                    print("q_grad_full:", q_grad_full.shape)
-                    print("k_grad_full:", k_grad_full.shape)
-                    print("v_grad_full:", v_grad_full.shape)
-                    print("A_inv:", A_inv.shape)
-                    print("V_inv:", V_inv.shape)
 
                     q_grad_precond = q_grad_full @ A_inv
                     k_grad_precond = k_grad_full @ A_inv
