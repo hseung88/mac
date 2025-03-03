@@ -210,7 +210,7 @@ class MAC(Optimizer):
                             avg_v_i = exp_avg_v[i]  # shape: [input_dim]
                             sq_norm_v_i = torch.linalg.norm(avg_v_i).pow(2)
 
-                            v_inv_i = torch.eye(head_dim, device=avg_v_i.device, dtype=avg_v_i.dtype)
+                            v_inv_i = torch.eye(input_dim, device=avg_v_i.device, dtype=avg_v_i.dtype)
                             v_inv_i.sub_(torch.outer(avg_v_i, avg_v_i).div_(damping + sq_norm_v_i))
                             v_inv_list.append(v_inv_i)
                         state['v_inv'] = v_inv_list
