@@ -186,7 +186,6 @@ class MAC(Optimizer):
                     if b_updated:
                         bias_correction = 1.0 - (stat_decay ** self.emastep)
                         exp_avg = state['exp_avg'].div(bias_correction).to(grad_mat.dtype)
-                        print('exp_avg:', exp_avg.shape)
                         sq_norm = torch.dot(exp_avg, exp_avg)
 
                         if 'A_inv' not in state:
