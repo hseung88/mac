@@ -99,6 +99,29 @@ class MAC(Optimizer):
         stat_decay = group['stat_decay']
 
         actv = forward_input[0].data
+        if isinstance(module, nn.Conv2d):
+            depthwise = module.groups == actv.size(1)
+            actv_processed = extract_patches(actv, module.kernel_size, module.stride, module.padding, depthwise)
+        elif isinstance(module, nn.Linear):
+            actv_processed = actv.view(-1, actv.size(-1))
+        elif isinstance(module, nn.LayerNorm):
+            actv_processed = actv.view(-1, actv.size(-1))
+            # Standardize inputs to mimic LayerNorm normalization.
+            mean = actv_processed.mean(dim=-1, keepdim=True)
+            var = actv_processed.var(dim=-1, unbiased=False, keepdim=True)
+            actv_processed = (actv_processed - mean) / torch.sqrt(var + module.eps)
+
+        if isinstance(module, (nn.Conv2d, nn.Linear)) and module.bias is not None:
+            ones = torch.ones((actv_processed.size(0), 1), device=actv_processed.device, dtype=actv_processed.dtype)
+            actv_processed = torch.cat([actv_processed, ones], dim=1)
+
+        avg_actv = actv_processed.mean(dim=0) # shape: [input_dim]
+
+        state = self.state[module]
+        if 'exp_avg' not in state:
+            state['exp_avg'] = torch.zeros_like(avg_actv, device=avg_actv.device)
+        state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
+
         # If the current module is the qkv layer, extract q and k from _forward_output
         if 'attn.qkv' in self.layer_map[module]['name']:
             actv_b_avg = actv.mean(dim=0)
@@ -132,36 +155,12 @@ class MAC(Optimizer):
                     "They must share the same 'N' dimension."
                 )
 
-            v_input = actv_b_avg.t() @ avg_attn # shape: [input_dim]
+            v_input = actv_b_avg.t() @ avg_attn  # shape: [input_dim]
 
             state = self.state[module]
             if 'exp_avg_v' not in state:
                 state['exp_avg_v'] = torch.zeros_like(v_input, device=v_input.device)
             state['exp_avg_v'].mul_(stat_decay).add_(v_input, alpha=1 - stat_decay)
-        elif isinstance(module, nn.Conv2d):
-            depthwise = module.groups == actv.size(1)
-            actv = extract_patches(actv, module.kernel_size, module.stride, module.padding, depthwise)
-        elif isinstance(module, nn.Linear):
-            if actv.ndim > 2:  # for Linear layers in transformers
-                actv = actv.view(-1, actv.size(-1))
-        elif isinstance(module, nn.LayerNorm):
-            if actv.ndim > 2:
-                actv = actv.view(-1, actv.size(-1))
-            # Standardize inputs to mimic LayerNorm normalization.
-            mean = actv.mean(dim=-1, keepdim=True)
-            var = actv.var(dim=-1, unbiased=False, keepdim=True)
-            actv = (actv - mean) / torch.sqrt(var + module.eps)
-
-        if isinstance(module, (nn.Conv2d, nn.Linear)) and module.bias is not None:
-            ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)
-            actv = torch.cat([actv, ones], dim=1)
-
-        avg_actv = actv.mean(dim=0) # shape: [input_dim]
-
-        state = self.state[module]
-        if 'exp_avg' not in state:
-            state['exp_avg'] = torch.zeros_like(avg_actv, device=avg_actv.device)
-        state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
 
     @torch.no_grad()
     def step(self, closure=None):
