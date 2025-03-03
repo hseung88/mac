@@ -227,16 +227,15 @@ class MAC(Optimizer):
                     grad_mat = new_grad
 
             if 'attn.qkv' in self.layer_map[layer]['name']:
-                grad_precond = grad_mat
+                v = grad_mat
             else:
-                grad_precond = grad_mat @ A_inv
+                v = grad_mat @ A_inv
             if layer.bias is not None:
-                grad_precond_weight = grad_precond[:, :-1]
-                grad_precond_bias = grad_precond[:, -1:]
-                layer.weight.grad.data.copy_(grad_precond_weight.view_as(layer.weight))
-                layer.bias.grad.data.copy_(grad_precond_bias.view_as(layer.bias))
+                v = [v[:, :-1], v[:, -1:]]
+                layer.weight.grad.data.copy_(v[0].view_as(layer.weight))
+                layer.bias.grad.data.copy_(v[1].view_as(layer.bias))
             else:
-                layer.weight.grad.data.copy_(grad_precond.view_as(layer.weight.grad))
+                layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
 
         momentum_step(self)
         self._step += 1
