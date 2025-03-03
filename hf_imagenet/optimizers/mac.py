@@ -118,7 +118,6 @@ class MAC(Optimizer):
             actv = torch.cat([actv, ones], dim=1)
 
         avg_actv = actv.mean(dim=0) # shape: [input_dim]
-        print('actv:', avg_actv.shape)
 
         state = self.state[module]
         if 'exp_avg' not in state:
@@ -126,23 +125,21 @@ class MAC(Optimizer):
         state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
 
         # If the current module is the qkv layer, extract q and k from _forward_output
+        qkv = _forward_output[0].data
         if 'attn.qkv' in self.layer_map[module]['name']:
             # _forward_output is a tensor of shape [B, N, 3 * dim]
-            B, N, three_dim = _forward_output.shape
+            B, N, three_dim = qkv.shape
             # The attention module typically has num_heads and head_dim attributes
             num_heads = self.model.blocks[0].attn.num_heads
             head_dim = self.model.embed_dim // num_heads
             # Reshape and permute to separate the qkv tensor
-            qkv = _forward_output.reshape(B, N, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
+            qkv = qkv.reshape(B, N, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
             q, k, _ = qkv.unbind(0)  # q, k shape: [B, num_heads, N, head_dim]
 
             # Compute attention scores:
             scale = 1.0 / math.sqrt(head_dim)
             R = (q @ k.transpose(-2, -1)) * scale # shape: [B, num_heads, N, N]
             attn = torch.softmax(R, dim=-1)
-            # Average A over the batch dimension to obtain per-head attention statistics
-            #attn = attn.mean(dim=0)  # shape: [num_heads, N, N]
-            #avg_attn = attn.mean(dim=-1, keepdim=True) # shape: [num_heads, N, 1]
             attn = attn.mean(dim=(0, 1))  # shape: [N, N]
             avg_attn = attn.mean(dim=-1, keepdim=True)  # shape: [N, 1]
 
@@ -181,7 +178,7 @@ class MAC(Optimizer):
                     if b_updated:
                         bias_correction = 1.0 - (stat_decay ** self.emastep)
                         exp_avg = state['exp_avg'].div(bias_correction).to(grad_mat.dtype)
-                        sq_norm = torch.linalg.norm(exp_avg).pow(2)
+                        sq_norm = torch.dot(exp_avg, exp_avg)
 
                         if 'A_inv' not in state:
                             state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype)
@@ -194,22 +191,18 @@ class MAC(Optimizer):
                     A_inv = state['A_inv'].to(grad_mat.dtype)
 
                 if 'attn.qkv' in self.layer_map[layer]['name']:
-                    #input_dim = grad_mat.shape
                     embed_dim = self.model.embed_dim
-                    #num_heads = self.model.blocks[0].attn.num_heads
-                    #head_dim = embed_dim // num_heads
 
                     # Split grad_mat into q, k, and v parts
                     q_grad_full = grad_mat[:embed_dim, :]  # shape: [embed_dim, input_dim]
                     k_grad_full = grad_mat[embed_dim:2 * embed_dim, :]  # shape: [embed_dim, input_dim]
                     v_grad_full = grad_mat[2 * embed_dim:, :]  # shape: [embed_dim, input_dim]
-                    #v_grad_heads = v_grad_full.reshape(num_heads, head_dim, input_dim)
 
                     if b_updated:
                         bias_correction = 1.0 - (stat_decay ** self.emastep)
                         # Update per-head inverse preconditioners
                         exp_avg_v = state['exp_avg_v'].div(bias_correction).to(grad_mat.dtype)  # [num_heads, input_dim]
-                        sq_norm_v = torch.linalg.norm(exp_avg_v).pow(2)
+                        sq_norm_v = torch.dot(exp_avg_v, exp_avg_v)
 
                         if 'V_inv' not in state:
                             state['V_inv'] = torch.eye(exp_avg_v.size(0), device=exp_avg_v.device, dtype=exp_avg_v.dtype)
