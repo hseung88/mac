@@ -98,7 +98,7 @@ class MAC(Optimizer):
         stat_decay = group['stat_decay']
 
         actv = forward_input[0].detach().clone()
-        attn_qkv = 'attn.qkv' in self.layer_map[module]['name']
+        attn_qkv = ('attn.qkv' in self.layer_map[module]['name'])
 
         if isinstance(module, nn.Conv2d):
             depthwise = module.groups == actv.size(1)
@@ -135,9 +135,11 @@ class MAC(Optimizer):
             scale = 1.0 / math.sqrt(head_dim)
             R = (q @ k.transpose(-2, -1)) * scale  # [B, num_heads, N, N]
             attn = torch.softmax(R, dim=-1)
-            avg_attn = attn.mean(dim=(0, 1, 3))  # [N, ]
+            #avg_attn = attn.mean(dim=(0, 1, 3))  # [N, ]
+            avg_attn_per_head = attn.mean(dim=(0, 3)) # [num_heads, N]
 
-            v_input = actv_b_avg.t() @ avg_attn
+            #v_input = actv_b_avg.t() @ avg_attn
+            v_input = actv_b_avg.t() @ avg_attn_per_head
 
             state = self.state[module]
             if 'exp_avg_v' not in state:
@@ -183,34 +185,62 @@ class MAC(Optimizer):
                     A_inv = state['A_inv'].to(grad_mat.dtype)
 
                 if layer != self.first_layer and 'attn.qkv' in self.layer_map[layer]['name']:
+                    three_d, input_dim = grad_mat.shape
                     embed_dim = self.model.embed_dim
+                    num_heads = self.model.blocks[0].attn.num_heads
+                    head_dim = embed_dim // num_heads
 
                     # Split grad_mat into q, k, and v parts
                     q_grad_full = grad_mat[:embed_dim, :]  # shape: [embed_dim, input_dim]
                     k_grad_full = grad_mat[embed_dim:2 * embed_dim, :]  # shape: [embed_dim, input_dim]
                     v_grad_full = grad_mat[2 * embed_dim:, :]  # shape: [embed_dim, input_dim]
 
+                    v_grad_heads = v_grad_full.reshape(num_heads, head_dim, input_dim)
+
+                    q_grad_precond = q_grad_full @ A_inv
+                    k_grad_precond = k_grad_full @ A_inv
+
                     if b_updated:
                         bias_correction = 1.0 - (stat_decay ** self.emastep)
                         # Update per-head inverse preconditioners
                         exp_avg_v = state['exp_avg_v'].div(bias_correction).to(grad_mat.dtype)  # [num_heads, input_dim]
-                        sq_norm_v = torch.dot(exp_avg_v, exp_avg_v)
+                        #sq_norm_v = torch.dot(exp_avg_v, exp_avg_v)
 
-                        if 'V_inv' not in state:
-                            state['V_inv'] = torch.eye(exp_avg_v.size(0), device=exp_avg_v.device, dtype=exp_avg_v.dtype)
-                        else:
-                            state['V_inv'].copy_(torch.eye(exp_avg_v.size(0), device=exp_avg_v.device, dtype=exp_avg_v.dtype))
+                        v_inv_list = []
+                        for i in range(num_heads):
+                            avg_v_i = exp_avg_v[i]  # shape: [input_dim]
+                            sq_norm_v_i = torch.dot(avg_v_i, avg_v_i)
 
-                        state['V_inv'].sub_(torch.outer(exp_avg_v, exp_avg_v).div_(damping + sq_norm_v))
+                            v_inv_i = torch.eye(input_dim, device=avg_v_i.device, dtype=avg_v_i.dtype)
+                            v_inv_i.sub_(torch.outer(avg_v_i, avg_v_i).div_(damping + sq_norm_v_i))
+                            v_inv_list.append(v_inv_i)
+                        state['v_inv'] = v_inv_list
 
-                    V_inv = state['V_inv'].to(grad_mat.dtype)
-
-                    q_grad_precond = q_grad_full @ A_inv
-                    k_grad_precond = k_grad_full @ A_inv
-                    v_grad_precond = v_grad_full @ V_inv
+                    # Use stored inverses to precondition each head's gradient.
+                    v_grad_heads_precond = []
+                    for i in range(num_heads):
+                        v_inv_i = state['v_inv'][i].to(grad_mat.dtype)
+                        v_precond_i = v_grad_heads[i] @ v_inv_i  # [head_dim, input_dim]
+                        v_grad_heads_precond.append(v_precond_i)
+                    v_grad_precond = torch.cat(v_grad_heads_precond, dim=0)  # shape: [embed_dim, input_dim]
 
                     new_grad = torch.cat([q_grad_precond, k_grad_precond, v_grad_precond], dim=0)
                     v = new_grad
+                        #if 'V_inv' not in state:
+                        #    state['V_inv'] = torch.eye(exp_avg_v.size(0), device=exp_avg_v.device, dtype=exp_avg_v.dtype)
+                        #else:
+                        #    state['V_inv'].copy_(torch.eye(exp_avg_v.size(0), device=exp_avg_v.device, dtype=exp_avg_v.dtype))
+
+                        #state['V_inv'].sub_(torch.outer(exp_avg_v, exp_avg_v).div_(damping + sq_norm_v))
+
+                    #V_inv = state['V_inv'].to(grad_mat.dtype)
+
+                    #q_grad_precond = q_grad_full @ A_inv
+                    #k_grad_precond = k_grad_full @ A_inv
+                    #v_grad_precond = v_grad_full @ V_inv
+
+                    #new_grad = torch.cat([q_grad_precond, k_grad_precond, v_grad_precond], dim=0)
+                    #v = new_grad
                 else:
                     v = grad_mat @ A_inv
 
