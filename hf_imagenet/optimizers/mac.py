@@ -121,8 +121,7 @@ class MAC(Optimizer):
         state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
 
         if attn_qkv:
-            actv = actv.view(B, N, actv.size(-1))
-            actv_b_avg = actv.mean(dim=0)  # shape: [N, input_dim]
+            actv_b_avg = actv.view(B, N, actv.size(-1)).mean(dim=0)  # shape: [N, input_dim]
             print("actv_b_avg", actv_b_avg.shape)
 
             # _forward_output is assumed to be [B, N, 3 * dim]
