@@ -146,7 +146,7 @@ class MAC(Optimizer):
             avg_attn = attn.mean(dim=-1, keepdim=True)  # shape: [N, 1]
 
             #v_input = torch.matmul(actv.transpose(0, 1).unsqueeze(0), avg_attn).squeeze(-1) # shape: [num_heads, input_dim]
-            v_input = torch.matmul(actv.t(), avg_attn)  # shape: [input_dim, 1]
+            v_input = torch.matmul(actv.t(), avg_attn).squeeze(-1)  # shape: [input_dim, 1]
 
             state = self.state[module]
             if 'exp_avg_v' not in state:
