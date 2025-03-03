@@ -116,6 +116,7 @@ class MAC(Optimizer):
             actv = torch.cat([actv, ones], dim=1)
 
         avg_actv = actv.mean(dim=0)
+        print("avg_actv:", avg_actv.shape)
 
         state = self.state[module]
         if 'exp_avg' not in state:
@@ -152,6 +153,7 @@ class MAC(Optimizer):
                 )
 
             v_input = actv_b_avg.t() @ avg_attn  # shape: [input_dim]
+            print("v_input:", v_input.shape)
 
             state = self.state[module]
             if 'exp_avg_v' not in state:
@@ -217,19 +219,23 @@ class MAC(Optimizer):
 
                         state['V_inv'].sub_(torch.outer(exp_avg_v, exp_avg_v).div_(damping + sq_norm_v))
 
-                    V_inv = state['V_inv']
+                    V_inv = state['V_inv'].to(grad_mat.dtype)
+
+                    print("q_grad_full:", q_grad_full.shape)
+                    print("k_grad_full:", k_grad_full.shape)
+                    print("v_grad_full:", v_grad_full.shape)
+                    print("A_inv:", A_inv.shape)
+                    print("V_inv:", V_inv.shape)
 
                     q_grad_precond = q_grad_full @ A_inv
                     k_grad_precond = k_grad_full @ A_inv
                     v_grad_precond = v_grad_full @ V_inv
 
                     new_grad = torch.cat([q_grad_precond, k_grad_precond, v_grad_precond], dim=0)
-                    grad_mat = new_grad
-
-                if 'attn.qkv' in self.layer_map[layer]['name']:
-                    v = grad_mat
+                    v = new_grad
                 else:
                     v = grad_mat @ A_inv
+
                 if layer.bias is not None:
                     v = [v[:, :-1], v[:, -1:]]
                     layer.weight.grad.data.copy_(v[0].view_as(layer.weight))
