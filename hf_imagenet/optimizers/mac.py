@@ -203,7 +203,7 @@ class MAC(Optimizer):
                     if b_updated:
                         bias_correction = 1.0 - (stat_decay ** self.emastep)
                         # Update per-head inverse preconditioners
-                        exp_avg_v = state['exp_avg_v'].div(bias_correction).to(grad_mat.dtype)  # [num_heads, head_dim]
+                        exp_avg_v = state['exp_avg_v'].div(bias_correction).to(grad_mat.dtype)  # [num_heads, input_dim]
 
                         v_inv_list = []
                         for i in range(num_heads):
@@ -223,7 +223,10 @@ class MAC(Optimizer):
                         v_grad_heads_precond.append(v_precond_i)
                     v_grad_precond = torch.cat(v_grad_heads_precond, dim=0)  # shape: [embed_dim, input_dim]
 
-                    new_grad = torch.cat([q_grad_full, k_grad_full, v_grad_precond], dim=0)
+                    q_grad_precond = q_grad_full @ A_inv
+                    k_grad_precond = k_grad_full @ A_inv
+
+                    new_grad = torch.cat([q_grad_precond, k_grad_precond, v_grad_precond], dim=0)
                     grad_mat = new_grad
 
             if isinstance(layer, nn.LayerNorm):
