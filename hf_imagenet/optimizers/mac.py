@@ -180,6 +180,7 @@ class MAC(Optimizer):
                     if b_updated:
                         bias_correction = 1.0 - (stat_decay ** self.emastep)
                         exp_avg = state['exp_avg'].div(bias_correction).to(grad_mat.dtype)
+                        print('exp_avg:', exp_avg.shape)
                         sq_norm = torch.dot(exp_avg, exp_avg)
 
                         if 'A_inv' not in state:
@@ -204,6 +205,7 @@ class MAC(Optimizer):
                         bias_correction = 1.0 - (stat_decay ** self.emastep)
                         # Update per-head inverse preconditioners
                         exp_avg_v = state['exp_avg_v'].div(bias_correction).to(grad_mat.dtype)  # [num_heads, input_dim]
+                        print('exp_avg_v:', exp_avg_v.shape)
                         sq_norm_v = torch.dot(exp_avg_v, exp_avg_v)
 
                         if 'V_inv' not in state:
