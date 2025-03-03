@@ -98,7 +98,7 @@ class MAC(Optimizer):
         group = self.param_groups[0]
         stat_decay = group['stat_decay']
 
-        actv = forward_input[0].detach.clone()
+        actv = forward_input[0].detach().clone()
         if isinstance(module, nn.Conv2d):
             depthwise = module.groups == actv.size(1)
             actv = extract_patches(actv, module.kernel_size, module.stride, module.padding, depthwise)
@@ -119,7 +119,7 @@ class MAC(Optimizer):
 
         # If the current module is the qkv layer, extract q and k from _forward_output
         if 'attn.qkv' in self.layer_map[module]['name']:
-            actv = forward_input[0].detach.clone()
+            actv = forward_input[0].detach().clone()
             actv_b_avg = actv.mean(dim=0)
             if module.bias is not None:
                 ones = torch.ones((actv_b_avg.size(0), 1), device=actv_b_avg.device, dtype=actv_b_avg.dtype)
