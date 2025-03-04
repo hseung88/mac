@@ -166,9 +166,7 @@ class LNGD(Optimizer):
                     g_norm_sq = state['g_norm_sq'].div(bias_correction)
 
                     phi = a_cov.mul_(g_norm_sq)
-                    print("phi", phi)
                     psi = g_square.mul_(a_norm_sq).div_(a_norm_sq * g_norm_sq)
-                    print("psi", psi)
 
                     damping_phi = (torch.trace(phi) / grad_mat.view(-1).size(0)).clamp(self.nu1, self.nu2)
                     damping_psi = (torch.sum(psi) / grad_mat.view(-1).size(0)).clamp(self.nu1, self.nu2)
