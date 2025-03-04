@@ -135,18 +135,14 @@ class MAC(Optimizer):
             scale = 1.0 / math.sqrt(head_dim)
             R = (q @ k.transpose(-2, -1)) * scale  # [B, num_heads, N, N]
             attn = torch.softmax(R, dim=-1)
-            avg_attn_row = attn.mean(dim=(0, 1, 3))  # [N, ]
-            avg_attn_col = attn.mean(dim=(0, 1, 2))  # [, N]
+            avg_attn = attn.mean(dim=(0, 1, 2))  # [N, ]
 
-            v_input_row = actv_b_avg.t() @ avg_attn_row
-            v_input_col = actv_b_avg.t() @ avg_attn_col
+            v_input = actv_b_avg.t() @ avg_attn
 
             state = self.state[module]
-            if 'exp_avg_v_row' not in state:
-                state['exp_avg_v_row'] = torch.zeros_like(v_input_row, device=v_input_row.device)
-                state['exp_avg_v_col'] = torch.zeros_like(v_input_col, device=v_input_col.device)
-            state['exp_avg_v_row'].mul_(stat_decay).add_(v_input_row, alpha=1 - stat_decay)
-            state['exp_avg_v_col'].mul_(stat_decay).add_(v_input_col, alpha=1 - stat_decay)
+            if 'exp_avg_v' not in state:
+                state['exp_avg_v'] = torch.zeros_like(v_input, device=v_input.device)
+            state['exp_avg_v'].mul_(stat_decay).add_(v_input, alpha=1 - stat_decay)
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -197,18 +193,15 @@ class MAC(Optimizer):
                     if b_updated:
                         bias_correction = 1.0 - (stat_decay ** self.emastep)
                         # Update per-head inverse preconditioners
-                        exp_avg_v_row = state['exp_avg_v_row'].div(bias_correction).to(
-                            grad_mat.dtype)  # [input_dim]
-                        exp_avg_v_col = state['exp_avg_v_col'].div(bias_correction).to(
-                            grad_mat.dtype)  # [input_dim]
-                        sq_norm_v = torch.dot(exp_avg_v_row, exp_avg_v_col)
+                        exp_avg_v = state['exp_avg_v'].div(bias_correction).to(grad_mat.dtype)  # [num_heads, input_dim]
+                        sq_norm_v = torch.dot(exp_avg_v, exp_avg_v)
 
                         if 'V_inv' not in state:
-                            state['V_inv'] = torch.eye(exp_avg_v_row.size(0), device=exp_avg_v_row.device, dtype=exp_avg_v_row.dtype)
+                            state['V_inv'] = torch.eye(exp_avg_v.size(0), device=exp_avg_v.device, dtype=exp_avg_v.dtype)
                         else:
-                            state['V_inv'].copy_(torch.eye(exp_avg_v_row.size(0), device=exp_avg_v_row.device, dtype=exp_avg_v_row.dtype))
+                            state['V_inv'].copy_(torch.eye(exp_avg_v.size(0), device=exp_avg_v.device, dtype=exp_avg_v.dtype))
 
-                        state['V_inv'].sub_(torch.outer(exp_avg_v_row, exp_avg_v_col).div_(damping + sq_norm_v))
+                        state['V_inv'].sub_(torch.outer(exp_avg_v, exp_avg_v).div_(damping + sq_norm_v))
 
                     V_inv = state['V_inv'].to(grad_mat.dtype)
 
