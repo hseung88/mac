@@ -93,19 +93,18 @@ class LNGD(Optimizer):
         if isinstance(module, nn.Conv2d):
             depthwise = module.groups == actv.size(1)
             actv = extract_patches(actv, module.kernel_size, module.stride, module.padding, depthwise)
+            actv = actv.view(-1, actv.size(-1))
         elif isinstance(module, nn.Linear):
-            if actv.ndim > 2:
-                actv = actv.view(-1, actv.size(-1))
+            actv = actv.view(-1, actv.size(-1))
 
         if isinstance(module, (nn.Conv2d, nn.Linear)) and module.bias is not None:
             ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)
-            actv = torch.cat([actv, ones], dim=1)
+            actv = torch.cat([actv, ones], dim=1) # [B, d_in]
 
-        # actv [B, d_in]
         a_norm_sq = actv.pow(2).sum(dim=1) # [B, ]
 
         state = self.state[module]
-        if 'a_norm_sq' not in state:
+        if 'actv' not in state:
             state['actv'] = torch.zeros_like(actv, device=actv.device)
             state['a_norm_sq'] = torch.zeros_like(a_norm_sq, device=a_norm_sq.device)
         state['actv'].mul_(stat_decay).add_(actv, alpha=1 - stat_decay)
@@ -132,11 +131,11 @@ class LNGD(Optimizer):
         g_norm_sq = g.pow(2).sum(dim=1) # [B, ]
 
         state = self.state[module]
-        if 'g_norm_sq' not in state:
-            state['g_norm_sq'] = torch.zeros_like(g_norm_sq, device=g_norm_sq.device)
+        if 'g_diag' not in state:
             state['g_diag'] = torch.zeros_like(g_diag, device=g_diag.device)
-        state['g_norm_sq'].mul_(stat_decay).add_(g_norm_sq, alpha=1 - stat_decay)
+            state['g_norm_sq'] = torch.zeros_like(g_norm_sq, device=g_norm_sq.device)
         state['g_diag'].mul_(stat_decay).add_(g_diag, alpha=1 - stat_decay)
+        state['g_norm_sq'].mul_(stat_decay).add_(g_norm_sq, alpha=1 - stat_decay)
 
     @torch.no_grad()
     def step(self, closure=None):
