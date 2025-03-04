@@ -93,9 +93,9 @@ class LNGD(Optimizer):
         if isinstance(module, nn.Conv2d):
             depthwise = module.groups == actv.size(1)
             actv = extract_patches(actv, module.kernel_size, module.stride, module.padding, depthwise)
-            actv = actv.view(-1, actv.size(-1))
         elif isinstance(module, nn.Linear):
-            actv = actv.view(-1, actv.size(-1))
+            if actv.ndim > 2:
+                actv = actv.view(-1, actv.size(-1))
 
         if isinstance(module, (nn.Conv2d, nn.Linear)) and module.bias is not None:
             ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)
