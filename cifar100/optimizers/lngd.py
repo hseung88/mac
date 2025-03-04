@@ -71,7 +71,6 @@ class LNGD(Optimizer):
     @model.setter
     def model(self, model):
         self._model = model
-        # Register forward and backward hooks to capture statistics.
         self.layer_map = build_layer_map(model,
                                          fwd_hook_fn=self._capture_activation,
                                          bwd_hook_fn=self._capture_backprop)
@@ -109,9 +108,8 @@ class LNGD(Optimizer):
         if 'a_norm_sq' not in state:
             state['a_cov'] = torch.zeros_like(a_cov, device=a_cov.device)
             state['a_norm_sq'] = torch.zeros_like(a_norm_sq, device=a_norm_sq.device)
-        else:
-            state['a_cov'].mul_(stat_decay).add_(a_cov, alpha=1 - stat_decay)
-            state['a_norm_sq'].mul_(stat_decay).add_(a_norm_sq, alpha=1 - stat_decay)
+        state['a_cov'].mul_(stat_decay).add_(a_cov, alpha=1 - stat_decay)
+        state['a_norm_sq'].mul_(stat_decay).add_(a_norm_sq, alpha=1 - stat_decay)
 
     def _capture_backprop(
             self,
@@ -137,9 +135,8 @@ class LNGD(Optimizer):
         if 'g_norm_sq' not in state:
             state['g_norm_sq'] = torch.zeros_like(g_norm_sq, device=g_norm_sq.device)
             state['g_square'] = torch.zeros_like(g_square, device=g_square.device)
-        else:
-            state['g_norm_sq'].mul_(stat_decay).add_(g_norm_sq, alpha=1 - stat_decay)
-            state['g_square'].mul_(stat_decay).add_(g_square, alpha=1 - stat_decay)
+        state['g_norm_sq'].mul_(stat_decay).add_(g_norm_sq, alpha=1 - stat_decay)
+        state['g_square'].mul_(stat_decay).add_(g_square, alpha=1 - stat_decay)
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -168,19 +165,13 @@ class LNGD(Optimizer):
                     a_norm_sq = state['a_norm_sq'].div(bias_correction)
                     g_norm_sq = state['g_norm_sq'].div(bias_correction)
 
-                    print("a_norm_sq", a_norm_sq)
-                    print("g_norm_sq", g_norm_sq)
-
                     phi = a_cov.mul_(g_norm_sq)
-                    print("phi", phi)
                     psi = g_square.mul_(a_norm_sq).div_(a_norm_sq + g_norm_sq)
 
                     damping_phi = (torch.trace(phi) / grad_mat.view(-1).size(0)).clamp(self.nu1, self.nu2)
-                    print("damping_phi", damping_phi)
                     damping_psi = (torch.sum(psi) / grad_mat.view(-1).size(0)).clamp(self.nu1, self.nu2)
 
                     phi.add_(damping_phi)
-                    print("damped_phi", phi)
                     psi.add_(damping_psi).reciprocal_()
 
                     state['A_inv'] = torch.linalg.inv(phi)
