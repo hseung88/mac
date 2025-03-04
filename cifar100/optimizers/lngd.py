@@ -140,7 +140,7 @@ class LNGD(Optimizer):
             B = grad_output[0].size(0)
             P = g.size(0) // B
             # Reshape to [B, H x W, d_out]
-            g = g.view(B, P, actv.size(-1))
+            g = g.view(B, P, g.size(-1))
             g_diag = g.pow(2).mean(dim=1)
         else:
             g_diag = g.pow(2) # [B, d_out]
