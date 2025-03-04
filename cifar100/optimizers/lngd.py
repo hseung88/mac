@@ -172,7 +172,7 @@ class LNGD(Optimizer):
                     psi = g_square.mul_(a_norm_sq).div_(a_norm_sq + g_norm_sq)
 
                     damping_phi = (torch.trace(phi) / phi.size(0)).clamp(self.nu1, self.nu2)
-                    damping_psi = (torch.trace(psi) / psi.size(0)).clamp(self.nu1, self.nu2)
+                    damping_psi = (torch.sum(psi) / psi.size(0)).clamp(self.nu1, self.nu2)
 
                     phi.add_(damping_phi)
                     psi.add_(damping_psi).reciprocal_()
