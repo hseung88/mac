@@ -98,7 +98,7 @@ class MAC(Optimizer):
         stat_decay = group['stat_decay']
 
         actv = forward_input[0].detach().clone()
-        attn_qkv = 'attn.qkv' in self.layer_map[module]['name']
+        attn_qkv = ('attn.qkv' in self.layer_map[module]['name'])
 
         if isinstance(module, nn.Conv2d):
             depthwise = module.groups == actv.size(1)
@@ -135,7 +135,7 @@ class MAC(Optimizer):
             scale = 1.0 / math.sqrt(head_dim)
             R = (q @ k.transpose(-2, -1)) * scale  # [B, num_heads, N, N]
             attn = torch.softmax(R, dim=-1)
-            avg_attn = attn.mean(dim=(0, 1, 3))  # [N, ]
+            avg_attn = attn.mean(dim=(0, 1, 2))  # [N, ]
 
             v_input = actv_b_avg.t() @ avg_attn
 
