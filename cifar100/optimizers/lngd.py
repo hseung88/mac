@@ -101,11 +101,11 @@ class LNGD(Optimizer):
             ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)
             actv = torch.cat([actv, ones], dim=1) # [B, d_in]
 
-        print('module', module)
-        print('actv', actv.shape)
         a_norm_sq = actv.pow(2).sum(dim=1) # [B, ]
 
-        state = self.state[module]
+        # Use id(module) as the unique layer key
+        layer_key = f"{id(module)}"
+        state = self.state[layer_key]
         if 'actv' not in state:
             state['actv'] = torch.zeros_like(actv, device=actv.device)
             state['a_norm_sq'] = torch.zeros_like(a_norm_sq, device=a_norm_sq.device)
@@ -132,7 +132,9 @@ class LNGD(Optimizer):
         g_diag = g.pow(2) # [B, d_out]
         g_norm_sq = g.pow(2).sum(dim=1) # [B, ]
 
-        state = self.state[module]
+        # Use id(module) as the unique layer key
+        layer_key = f"{id(module)}"
+        state = self.state[layer_key]
         if 'g_diag' not in state:
             state['g_diag'] = torch.zeros_like(g_diag, device=g_diag.device)
             state['g_norm_sq'] = torch.zeros_like(g_norm_sq, device=g_norm_sq.device)
@@ -155,8 +157,9 @@ class LNGD(Optimizer):
             self.emastep += 1
 
         for layer in self.layer_map:
+            layer_key = f"{id(layer)}"
             if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
-                state = self.state[layer]
+                state = self.state[layer_key]
                 grad_mat = reshape_grad(layer)  # shape: [m, d] (including bias column if present)
 
                 if b_updated:
