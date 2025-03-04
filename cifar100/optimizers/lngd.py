@@ -101,6 +101,8 @@ class LNGD(Optimizer):
             ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)
             actv = torch.cat([actv, ones], dim=1) # [B, d_in]
 
+        print('module', module)
+        print('actv', actv.shape)
         a_norm_sq = actv.pow(2).sum(dim=1) # [B, ]
 
         state = self.state[module]
