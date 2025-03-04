@@ -182,7 +182,7 @@ class LNGD(Optimizer):
                 G_inv = state['G_inv']
                 v = G_inv @ grad_mat @ A_inv
 
-                # Adaptive layer-wise learning rate: dot_val / (dot_val + mu)
+                # Adaptive layer-wise learning rate: dot_val / (dot_val ** 2 + mu)
                 dot_val = torch.dot(v.view(-1), grad_mat.view(-1))
                 adaptive_lr = dot_val / (dot_val ** 2 + self.mu) if (dot_val ** 2 + self.mu) != 0 else 1.0
                 v_alr = adaptive_lr * v
