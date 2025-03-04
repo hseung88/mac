@@ -101,8 +101,9 @@ class LNGD(Optimizer):
             ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)
             actv = torch.cat([actv, ones], dim=1)
 
-        a_cov = torch.matmul(actv.t(), actv / actv.size(0))
-        a_norm_sq = (actv.pow(2).sum(dim=1)).mean()
+        # actv [B, d_in]
+        a_cov = torch.einsum('bi,bj->bij', actv, actv) # [B, d_in, d_in]
+        a_norm_sq = actv.pow(2).sum(dim=1) # [B, ]
 
         state = self.state[module]
         if 'a_norm_sq' not in state:
@@ -126,17 +127,17 @@ class LNGD(Optimizer):
         if isinstance(module, nn.Conv2d):
             g = g.transpose(1, 2).transpose(2, 3)
         g = try_contiguous(g)
-        g = g.view(-1, g.size(-1))
+        g = g.view(-1, g.size(-1)) # [B, d_out]
 
-        g_norm_sq = (g.pow(2).sum(dim=1)).mean()
-        g_square = g.pow(2).mean(dim=0)
+        g_diag = g.pow(2) # [B, d_out]
+        g_norm_sq = g.pow(2).sum(dim=1) # [B, ]
 
         state = self.state[module]
         if 'g_norm_sq' not in state:
             state['g_norm_sq'] = torch.zeros_like(g_norm_sq, device=g_norm_sq.device)
-            state['g_square'] = torch.zeros_like(g_square, device=g_square.device)
+            state['g_diag'] = torch.zeros_like(g_diag, device=g_diag.device)
         state['g_norm_sq'].mul_(stat_decay).add_(g_norm_sq, alpha=1 - stat_decay)
-        state['g_square'].mul_(stat_decay).add_(g_square, alpha=1 - stat_decay)
+        state['g_diag'].mul_(stat_decay).add_(g_diag, alpha=1 - stat_decay)
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -160,13 +161,13 @@ class LNGD(Optimizer):
 
                 if b_updated:
                     bias_correction = 1.0 - (stat_decay ** self.emastep)
-                    a_cov = state['a_cov'].div(bias_correction)
-                    g_square = state['g_square'].div(bias_correction)
-                    a_norm_sq = state['a_norm_sq'].div(bias_correction)
-                    g_norm_sq = state['g_norm_sq'].div(bias_correction)
+                    a_cov = state['a_cov'].div(bias_correction) # [B, d_in, d_in]
+                    g_diag = state['g_diag'].div(bias_correction) # [B, d_out]
+                    a_norm_sq = state['a_norm_sq'].div(bias_correction) # [B, ]
+                    g_norm_sq = state['g_norm_sq'].div(bias_correction) # [B, ]
 
-                    phi = a_cov.mul_(g_norm_sq)
-                    psi = g_square.mul_(a_norm_sq).div_(a_norm_sq * g_norm_sq)
+                    phi = (a_cov * g_norm_sq.view(-1, 1, 1)).mean(dim=0)
+                    psi = (g_diag * a_norm_sq.view(-1, 1)).mean(dim=0) / (a_norm_sq * g_norm_sq).mean(dim=0)
 
                     damping_phi = (torch.trace(phi) / grad_mat.view(-1).size(0)).clamp(self.nu1, self.nu2)
                     damping_psi = (torch.sum(psi) / grad_mat.view(-1).size(0)).clamp(self.nu1, self.nu2)
@@ -184,7 +185,7 @@ class LNGD(Optimizer):
 
                 # Adaptive layer-wise learning rate: dot_val / (dot_val ** 2 + mu)
                 dot_val = torch.dot(v.view(-1), grad_mat.view(-1))
-                adaptive_lr = dot_val / (dot_val ** 2 + self.mu) if (dot_val ** 2 + self.mu) != 0 else 1.0
+                adaptive_lr = dot_val / (dot_val ** 2 + self.mu)
                 v_alr = adaptive_lr * v
 
                 if layer.bias is not None:
