@@ -171,7 +171,7 @@ class LNGD(Optimizer):
                         cov = torch.outer(actv[i], actv[i])
                         phi_accum.add_(cov * g_norm_sq[i])
 
-                    phi = phi_accum / B  [d_in, d_in]
+                    phi = phi_accum / B  #[d_in, d_in]
                     psi = (g_diag * a_norm_sq.view(-1, 1)).mean(dim=0) / (a_norm_sq * g_norm_sq).mean(dim=0)
 
                     damping_phi = (torch.trace(phi) / grad_mat.view(-1).size(0)).clamp(self.nu1, self.nu2)
