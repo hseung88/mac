@@ -101,7 +101,7 @@ class LNGD(Optimizer):
             ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)
             actv = torch.cat([actv, ones], dim=1)
 
-        a_cov = torch.matmul(actv.t(), actv) / actv.size(0)
+        a_cov = torch.matmul(actv.t(), actv / actv.size(0))
         a_norm_sq = (actv.pow(2).sum(dim=1)).mean()
 
         state = self.state[module]
@@ -166,7 +166,9 @@ class LNGD(Optimizer):
                     g_norm_sq = state['g_norm_sq'].div(bias_correction)
 
                     phi = a_cov.mul_(g_norm_sq)
-                    psi = g_square.mul_(a_norm_sq).div_(a_norm_sq + g_norm_sq)
+                    print("phi", phi)
+                    psi = g_square.mul_(a_norm_sq).div_(a_norm_sq * g_norm_sq)
+                    print("psi", psi)
 
                     damping_phi = (torch.trace(phi) / grad_mat.view(-1).size(0)).clamp(self.nu1, self.nu2)
                     damping_psi = (torch.sum(psi) / grad_mat.view(-1).size(0)).clamp(self.nu1, self.nu2)
