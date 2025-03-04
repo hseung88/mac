@@ -162,7 +162,8 @@ class LNGD(Optimizer):
                 grad_mat = reshape_grad(layer)  # shape: [m, d] (including bias column if present)
 
                 if b_updated:
-                    bias_correction = 1.0 - (stat_decay ** self.emastep)
+                    #bias_correction = 1.0 - (stat_decay ** self.emastep)
+                    bias_correction = 1.0
                     a_cov = state['a_cov'].div(bias_correction)
                     g_square = state['g_square'].div(bias_correction)
                     a_norm_sq = state['a_norm_sq'].div(bias_correction)
@@ -171,8 +172,8 @@ class LNGD(Optimizer):
                     phi = a_cov.mul_(g_norm_sq)
                     psi = g_square.mul_(a_norm_sq).div_(a_norm_sq + g_norm_sq)
 
-                    damping_phi = (torch.trace(phi) / phi.size(0)).clamp(self.nu1, self.nu2)
-                    damping_psi = (torch.sum(psi) / psi.size(0)).clamp(self.nu1, self.nu2)
+                    damping_phi = (torch.trace(phi) / grad_mat.view(-1).size(0)).clamp(self.nu1, self.nu2)
+                    damping_psi = (torch.sum(psi) / grad_mat.view(-1).size(0)).clamp(self.nu1, self.nu2)
 
                     phi.add_(damping_phi)
                     psi.add_(damping_psi).reciprocal_()
@@ -187,7 +188,7 @@ class LNGD(Optimizer):
 
                 # Adaptive layer-wise learning rate: dot_val / (dot_val + mu)
                 dot_val = torch.dot(v.view(-1), grad_mat.view(-1))
-                adaptive_lr = dot_val / (dot_val + self.mu) if (dot_val + self.mu) != 0 else 1.0
+                adaptive_lr = dot_val / (dot_val ** 2 + self.mu) if (dot_val ** 2 + self.mu) != 0 else 1.0
                 v_alr = adaptive_lr * v
 
                 if layer.bias is not None:
