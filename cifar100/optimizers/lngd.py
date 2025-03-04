@@ -135,8 +135,16 @@ class LNGD(Optimizer):
         g = try_contiguous(g)
         g = g.view(-1, g.size(-1)) # [B, d_out]
 
-        g_diag = g.pow(2) # [B, d_out]
-        g_norm_sq = g.pow(2).sum(dim=1) # [B, ]
+        g_norm_sq = g.pow(2).sum(dim=1)  # [B, ]
+        if isinstance(module, nn.Conv2d):
+            B = grad_output[0].size(0)
+            P = g.size(0) // B
+            # Reshape to [B, H x W, d_out]
+            g = g.view(B, P, actv.size(-1))
+            g_diag = g.pow(2).mean(dim=1)
+        else:
+            g_diag = g.pow(2) # [B, d_out]
+
 
         # Use id(module) as the unique layer key
         layer_name = self.layer_map[module]['name']
@@ -176,7 +184,7 @@ class LNGD(Optimizer):
                     g_norm_sq = state['g_norm_sq'].div(bias_correction) # [B, ]
 
                     if isinstance(layer, nn.Conv2d):
-                        cov = torch.einsum('bik,bjl->bkl', actv, actv)
+                        cov = torch.einsum('bij,bik->bjk', actv, actv)
                     else:
                         cov = torch.einsum('bi,bj->bij', actv, actv)
 
