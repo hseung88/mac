@@ -162,12 +162,14 @@ class LNGD(Optimizer):
                 grad_mat = reshape_grad(layer)  # shape: [m, d] (including bias column if present)
 
                 if b_updated:
-                    #bias_correction = 1.0 - (stat_decay ** self.emastep)
-                    bias_correction = 1.0
+                    bias_correction = 1.0 - (stat_decay ** self.emastep)
                     a_cov = state['a_cov'].div(bias_correction)
                     g_square = state['g_square'].div(bias_correction)
                     a_norm_sq = state['a_norm_sq'].div(bias_correction)
                     g_norm_sq = state['g_norm_sq'].div(bias_correction)
+
+                    print("a_norm_sq", a_norm_sq)
+                    print("g_norm_sq", g_norm_sq)
 
                     phi = a_cov.mul_(g_norm_sq)
                     print("phi", phi)
