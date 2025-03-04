@@ -102,14 +102,13 @@ class LNGD(Optimizer):
             actv = torch.cat([actv, ones], dim=1)
 
         # actv [B, d_in]
-        a_cov = torch.einsum('bi,bj->bij', actv, actv) # [B, d_in, d_in]
         a_norm_sq = actv.pow(2).sum(dim=1) # [B, ]
 
         state = self.state[module]
         if 'a_norm_sq' not in state:
-            state['a_cov'] = torch.zeros_like(a_cov, device=a_cov.device)
+            state['actv'] = torch.zeros_like(actv, device=actv.device)
             state['a_norm_sq'] = torch.zeros_like(a_norm_sq, device=a_norm_sq.device)
-        state['a_cov'].mul_(stat_decay).add_(a_cov, alpha=1 - stat_decay)
+        state['actv'].mul_(stat_decay).add_(actv, alpha=1 - stat_decay)
         state['a_norm_sq'].mul_(stat_decay).add_(a_norm_sq, alpha=1 - stat_decay)
 
     def _capture_backprop(
@@ -161,12 +160,18 @@ class LNGD(Optimizer):
 
                 if b_updated:
                     bias_correction = 1.0 - (stat_decay ** self.emastep)
-                    a_cov = state['a_cov'].div(bias_correction) # [B, d_in, d_in]
+                    actv = state['actv'].div(bias_correction) # [B, d_in]
                     g_diag = state['g_diag'].div(bias_correction) # [B, d_out]
                     a_norm_sq = state['a_norm_sq'].div(bias_correction) # [B, ]
                     g_norm_sq = state['g_norm_sq'].div(bias_correction) # [B, ]
 
-                    phi = (a_cov * g_norm_sq.view(-1, 1, 1)).mean(dim=0)
+                    B, d_in = actv.shape
+                    phi_accum = torch.zeros(d_in, d_in, device=actv.device, dtype=actv.dtype)
+                    for i in range(B):
+                        cov = torch.outer(actv[i], actv[i])
+                        phi_accum.add_(cov * g_norm_sq[i])
+
+                    phi = phi_accum / B  [d_in, d_in]
                     psi = (g_diag * a_norm_sq.view(-1, 1)).mean(dim=0) / (a_norm_sq * g_norm_sq).mean(dim=0)
 
                     damping_phi = (torch.trace(phi) / grad_mat.view(-1).size(0)).clamp(self.nu1, self.nu2)
