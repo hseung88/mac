@@ -119,7 +119,7 @@ class MAC(Optimizer):
             if actv.ndim > 2:  # Expect shape [B, N, d] for transformer inputs.
                 if attn_qkv:
                     B, N, D = actv.shape
-                actv = actv.view(-1, actv.size(-1))
+                actv = actv.reshape(-1, actv.size(-1))
 
         if isinstance(module, (nn.Conv2d, nn.Linear)) and module.bias is not None:
             ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)
@@ -135,7 +135,7 @@ class MAC(Optimizer):
         state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
 
         if attn_qkv:
-            actv_b_avg = actv.view(B, N, actv.size(-1)).mean(dim=0)  # shape: [N, input_dim]
+            actv_b_avg = actv.reshape(B, N, actv.size(-1)).mean(dim=0)  # shape: [N, input_dim]
 
             qkv_out = _forward_output.detach().clone()
             # _forward_output is assumed to be [B, N, 3 * dim]
