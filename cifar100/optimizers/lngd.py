@@ -101,13 +101,15 @@ class LNGD(Optimizer):
             ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)
             actv = torch.cat([actv, ones], dim=1) # [B, d_in]
 
-        a_norm_sq = actv.pow(2).sum(dim=1) # [B, ]
         if isinstance(module, nn.Conv2d):
             # Compute original batch size and number of patches per image
             B = forward_input[0].size(0)
             P = actv.size(0) // B
             # Reshape to [B, P, d_in]
             actv = actv.view(B, P, actv.size(-1))
+            a_norm_sq = actv.pow(2).sum(dim=(1,2))  # [B, ]
+        else:
+            a_norm_sq = actv.pow(2).sum(dim=1)  # [B, ]
 
         # Use id(module) as the unique layer key
         layer_name = self.layer_map[module]['name']
@@ -135,16 +137,16 @@ class LNGD(Optimizer):
         g = try_contiguous(g)
         g = g.view(-1, g.size(-1)) # [B, d_out]
 
-        g_norm_sq = g.pow(2).sum(dim=1)  # [B, ]
         if isinstance(module, nn.Conv2d):
             B = grad_output[0].size(0)
             P = g.size(0) // B
             # Reshape to [B, H x W, d_out]
             g = g.view(B, P, g.size(-1))
             g_diag = g.pow(2).mean(dim=1)
+            g_norm_sq = g.pow(2).sum(dim=(1,2))  # [B, ]
         else:
             g_diag = g.pow(2) # [B, d_out]
-
+            g_norm_sq = g.pow(2).sum(dim=1)  # [B, ]
 
         # Use id(module) as the unique layer key
         layer_name = self.layer_map[module]['name']
