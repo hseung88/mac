@@ -29,7 +29,7 @@ from fairseq.models.ema import build_ema
 from fairseq.nan_detector import NanDetector
 from fairseq.optim import lr_scheduler
 from fairseq.utils import safe_hasattr
-from fairseq.optim.adaact_one import AdaActR1
+from fairseq.optim.mac import MAC
 
 logger = logging.getLogger(__name__)
 
@@ -374,7 +374,7 @@ class Trainer(object):
             else:
                 optim.shard_(self._optimizer, self.data_parallel_process_group)
         
-        if isinstance(self._optimizer.optimizer, AdaActR1):
+        if isinstance(self._optimizer.optimizer, MAC):
             self._optimizer.optimizer.model = self._model
         
         # We should initialize the learning rate scheduler immediately after

@@ -16,7 +16,7 @@ from fairseq.data import Dictionary, FairseqDataset, data_utils, encoders, itera
 from fairseq.dataclass import FairseqDataclass
 from fairseq.dataclass.utils import gen_parser_from_dataclass
 from fairseq.optim.amp_optimizer import AMPOptimizer
-from fairseq.optim.adaact_one import AdaActR1
+from fairseq.optim.mac import MAC
 from omegaconf import DictConfig
 
 
