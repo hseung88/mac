@@ -88,7 +88,6 @@ class GLUETransformer(LightningModule):
         return self.model(**inputs)
 
     def configure_params(self):
-        # This method is kept for future use.
         model = self.model
         if self.full_parameter:
             self.params = [(n, p) for n, p in model.named_parameters()]
@@ -126,10 +125,10 @@ class GLUETransformer(LightningModule):
     def training_step(self, batch, batch_idx):
         outputs = self(**batch)
         loss = outputs[0]
-        # Log training loss
+        # Log training loss using a case-insensitive check.
         self.state.tr_loss.append(loss.detach().cpu().float().numpy())
         self.state.global_training_steps += 1
-        if self.logger_type == 'wandb':
+        if self.logger_type.lower() == 'wandb':
             wandb.log({"train_loss": loss.item()})
         else:
             self.log('train_loss', loss.item())

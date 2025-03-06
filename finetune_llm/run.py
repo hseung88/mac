@@ -23,33 +23,34 @@ logger = logging.getLogger(__name__)
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Argument Parser for Model Fine-tuning')
-    parser.add_argument('--epochs', type=int, default=3, help='Number of training epochs')
-    parser.add_argument('--samplesize', type=int, default=1024, help='Training data sample size')
-    parser.add_argument('--samplesize_validation', type=int, default=128, help='Validation data sample size')
-    parser.add_argument('--model_name', type=str, default='DistilBert', help='Name of the pre-trained model')
+    parser.add_argument('--epochs', type=int, default=10, help='Number of training epochs')
+    parser.add_argument('--samplesize', type=int, default=512, help='Training data sample size')
+    parser.add_argument('--samplesize_validation', type=int, default=256, help='Validation data sample size')
+    parser.add_argument('--model_name', type=str, default='distilbert-base-cased', help='Name of the pre-trained model')
     parser.add_argument('--task', type=str, default='mnli', help='Task for model training')
     parser.add_argument('--full_parameter', action='store_true', help='True for full parameter fine-tuning')
     parser.add_argument('--batchsize', type=int, default=64, help='Batch size for training')
     parser.add_argument('--batchsize_limit', type=int, default=64,
                         help='Max batch size to be used to avoid memory error')
-    parser.add_argument('--max_seq_length', type=int, default=256, help='Max sequence length for inputs')
+    parser.add_argument('--max_seq_length', type=int, default=128, help='Max sequence length for inputs')
     parser.add_argument('--anneal', type=float, default=1.5, help='Annealing parameter')
-    parser.add_argument('--lr', type=float, default=2e-3, help='Learning rate')
+    parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate')
     parser.add_argument('--device', type=int, default=0, help='GPU Number')
     parser.add_argument('--results', type=str, default='results_demo', help='Name of folder to store results')
     parser.add_argument('--soft_prompt', action='store_true', help='True for using soft prompt')
-    parser.add_argument('--logging', type=str, default="wandb",
+    parser.add_argument('--logging', type=str, default="tensorboard",
                         help="Choose logging method; either wandb or tensorboard or none")
     parser.add_argument('--low_bit_adam', type=int, default=0, help='Use Adam with quantized states; options: 4 or 8')
     parser.add_argument('--trial', type=int, default=0, help='Trial number')
     parser.add_argument('--init_seed', type=int, default=None, help='Random seed for model initialization')
     # Arguments for MAC optimizer and others
-    parser.add_argument('--optimizer', type=str, default='mac', help='Optimizer to use: mac, sgd, or adam')
+    parser.add_argument('--optimizer', type=str, default='sgd', help='Optimizer to use: mac, sgd, or adam')
     parser.add_argument('--stat_decay', type=float, default=0.95, help='Statistic decay for MAC optimizer')
     parser.add_argument('--tcov', type=int, default=5, help='Tcov parameter for MAC optimizer')
     parser.add_argument('--tinv', type=int, default=5, help='Tinv parameter for MAC optimizer')
     parser.add_argument('--damping', type=float, default=1.0, help='Damping for MAC optimizer')
     parser.add_argument('--weight_decay', type=float, default=0.0, help='Weight decay')
+    parser.add_argument('--gpus', type=int, default=1, help='Number of GPUs to use')
     args = parser.parse_args()
     return args
 
@@ -137,7 +138,7 @@ if __name__ == "__main__":
 
     logger.info(f"Training Arguments: {args}")
 
-    # If using wandb logging, initialize wandb before training
+    # Initialize wandb if using wandb logging
     if args.logging.lower() == "wandb":
         wandb.init(project="your_project_name", name=args.run_name, config=args)
 
@@ -145,11 +146,11 @@ if __name__ == "__main__":
     dm = get_data_module(args)
     model = get_model(args, dm)
 
-    # Use PyTorch Lightning Trainer with updated accelerator and devices arguments
+    # Use PyTorch Lightning Trainer with accelerator and devices arguments
     trainer = pl.Trainer(
         max_epochs=args.epochs,
         accelerator="gpu" if torch.cuda.is_available() else "cpu",
-        devices=[args.device] if torch.cuda.is_available() else None,
+        devices=list(range(args.gpus)) if torch.cuda.is_available() else None,
         default_root_dir=args.output_dir,
         logger=None  # Optionally, add a WandbLogger or TensorBoardLogger here.
     )
