@@ -113,10 +113,10 @@ if __name__ == "__main__":
     args.run_name += f'_trial_{args.trial}'
     args.output_dir = os.path.join('results', trimmed_model_name, args.task, args.run_name)
 
-    # Create output directory to avoid FileNotFoundError when creating the log file
+    # Create output directory
     os.makedirs(args.output_dir, exist_ok=True)
 
-    # Setup logging
+    # Setup logging as before
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     logger.propagate = False
@@ -138,21 +138,22 @@ if __name__ == "__main__":
 
     logger.info(f"Training Arguments: {args}")
 
-    # Initialize wandb if using wandb logging
-    if args.logging.lower() == "wandb":
-        wandb.init(project="your_project_name", name=args.run_name, config=args)
+    # Remove wandb initialization since we're not using wandb
+    # if args.logging.lower() == "wandb":
+    #     wandb.init(project="your_project_name", name=args.run_name, config=args)
 
     # Initialize data module and model
     dm = get_data_module(args)
     model = get_model(args, dm)
 
-    # Use PyTorch Lightning Trainer with accelerator and devices arguments
+    # Use PyTorch Lightning Trainer with updated accelerator and devices arguments
     trainer = pl.Trainer(
         max_epochs=args.epochs,
         accelerator="gpu" if torch.cuda.is_available() else "cpu",
         devices=list(range(args.gpus)) if torch.cuda.is_available() else None,
         default_root_dir=args.output_dir,
-        logger=None  # Optionally, add a WandbLogger or TensorBoardLogger here.
+        logger=None  # Optionally, add a logger if desired.
     )
 
     trainer.fit(model, datamodule=dm)
+

@@ -127,11 +127,8 @@ class GLUETransformer(LightningModule):
         loss = outputs[0]
         self.state.tr_loss.append(loss.detach().cpu().float().numpy())
         self.state.global_training_steps += 1
-        # Only log with wandb if logger_type is wandb and we're on global rank 0.
-        if self.logger_type.lower() == 'wandb' and self.global_rank == 0:
-            wandb.log({"train_loss": loss.item()})
-        else:
-            self.log('train_loss', loss.item())
+        # Instead of wandb.log, use self.log() or simply omit logging here.
+        self.log('train_loss', loss.item())
         return loss
 
     def validation_step(self, batch, batch_idx):
