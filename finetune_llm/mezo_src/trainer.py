@@ -77,11 +77,11 @@ class Trainer(LinearHeadTrainer):
                 self.optimizer = AdamW(
                     optimizer_grouped_parameters,
                     lr=self.args.learning_rate,
-                    betas=(self.args.adam_beta1, self.args.adam_beta2),
-                    eps=self.args.adam_epsilon,
+                    weight_decay=self.args.weight_decay
                 )
             elif self.args.optimizer.lower() == 'sgd':
-                self.optimizer = SGD(optimizer_grouped_parameters, lr=self.args.learning_rate, momentum=0.9)
+                self.optimizer = SGD(optimizer_grouped_parameters, lr=self.args.learning_rate, momentum=0.9,
+                                     weight_decay=self.args.weight_decay)
             elif self.args.optimizer.lower() == 'mac':
                 self.optimizer = MAC(
                     optimizer_grouped_parameters,
@@ -91,6 +91,7 @@ class Trainer(LinearHeadTrainer):
                     damping=self.args.damping,
                     Tcov=self.args.tcov,
                     Tinv=self.args.tinv,
+                    weight_decay=self.args.weight_decay
                 )
                 self.optimizer.model = self.model
             else:
