@@ -19,7 +19,6 @@ import torch.nn.functional as F
 from src.linearhead_trainer import LinearHeadTrainer  # your base trainer
 from transformers.trainer_callback import DefaultFlowCallback, ProgressCallback, TrainerState
 
-# Optional native AMP support
 _use_native_amp = version.parse(torch.__version__) >= version.parse("1.6")
 if _use_native_amp:
     from torch.cuda.amp import autocast

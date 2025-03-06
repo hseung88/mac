@@ -95,7 +95,6 @@ class GLUETransformer(LightningModule):
             raise NotImplementedError("Partial optimization not supported yet.")
 
     def configure_optimizers(self):
-        """Return an optimizer based on the chosen optimizer name."""
         model = self.model
         if self.full_parameter:
             self.params_to_opt = model.parameters()
@@ -127,8 +126,8 @@ class GLUETransformer(LightningModule):
         loss = outputs[0]
         self.state.tr_loss.append(loss.detach().cpu().float().numpy())
         self.state.global_training_steps += 1
-        # Instead of wandb.log, use self.log() or simply omit logging here.
-        self.log('train_loss', loss.item())
+        # Log training loss via self.log (wandb calls removed)
+        self.log('train_loss', loss.item(), prog_bar=True, on_step=True, on_epoch=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -139,16 +138,12 @@ class GLUETransformer(LightningModule):
         elif self.hparams.num_labels == 1:
             preds = logits.squeeze()
         labels = batch["labels"]
-        correct = (preds == labels).sum().item()
-        total = len(labels)
-        acc = correct / total
+        # Calculate accuracy
+        acc = (preds == labels).float().mean()
+        # Log validation metrics so they are aggregated automatically.
+        self.log("val_loss", val_loss, prog_bar=True, on_epoch=True, sync_dist=True)
+        self.log("val_acc", acc, prog_bar=True, on_epoch=True, sync_dist=True)
         return {"val_loss": val_loss, "val_acc": acc}
-
-    def on_validation_epoch_end(self):
-        outputs = self.trainer.callback_metrics
-        avg_loss = outputs.get("val_loss", None)
-        avg_acc = outputs.get("val_acc", None)
-        logging.info(f"Validation Loss: {avg_loss}, Validation Accuracy: {avg_acc}")
 
     def load_from_checkpoint(self, checkpoint_path: str):
         self.model.load_state_dict(torch.load(os.path.join(checkpoint_path, MODEL_NAME)))
