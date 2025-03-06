@@ -125,10 +125,10 @@ class GLUETransformer(LightningModule):
     def training_step(self, batch, batch_idx):
         outputs = self(**batch)
         loss = outputs[0]
-        # Log training loss using a case-insensitive check.
         self.state.tr_loss.append(loss.detach().cpu().float().numpy())
         self.state.global_training_steps += 1
-        if self.logger_type.lower() == 'wandb':
+        # Only log with wandb if logger_type is wandb and we're on global rank 0.
+        if self.logger_type.lower() == 'wandb' and self.global_rank == 0:
             wandb.log({"train_loss": loss.item()})
         else:
             self.log('train_loss', loss.item())

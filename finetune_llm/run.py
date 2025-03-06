@@ -35,7 +35,7 @@ def parse_arguments():
     parser.add_argument('--max_seq_length', type=int, default=128, help='Max sequence length for inputs')
     parser.add_argument('--anneal', type=float, default=1.5, help='Annealing parameter')
     parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate')
-    parser.add_argument('--device', type=int, default=0, help='GPU Number')
+    parser.add_argument('--device', type=int, default=0, help='GPU Number (ignored if --gpus is provided)')
     parser.add_argument('--results', type=str, default='results_demo', help='Name of folder to store results')
     parser.add_argument('--soft_prompt', action='store_true', help='True for using soft prompt')
     parser.add_argument('--logging', type=str, default="tensorboard",

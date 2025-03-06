@@ -27,7 +27,6 @@ if _use_native_amp:
 logger = logging.get_logger(__name__)
 logger.setLevel(logging.INFO)
 
-# Import MAC optimizer
 from optimizers.mac import MAC
 
 DEFAULT_CALLBACKS = [DefaultFlowCallback, ProgressCallback]
@@ -40,16 +39,13 @@ def default_dev_objective(metrics: Dict) -> float:
 class Trainer(LinearHeadTrainer):
     """
     A simplified Trainer that uses standard backpropagation.
-    Zero-order functions have been removed. Optimizer and scheduler are created
-    based on training arguments.
+    Zero-order functions have been removed.
     """
-
     def create_optimizer_and_scheduler(self, num_training_steps: int):
         if self.args.hf_inference_model:
             return
 
         if self.optimizer is None:
-            # Gather parameters (with optional layer freezing)
             params = {}
             for n, p in self.model.named_parameters():
                 if self.args.fix_layers > 0:
@@ -110,9 +106,6 @@ class Trainer(LinearHeadTrainer):
             )
 
     def train(self, model_path=None, dev_objective=None):
-        """
-        Main training entry point using standard forward/backward updates.
-        """
         train_dataloader = self.get_train_dataloader()
         num_update_steps_per_epoch = max(1, len(train_dataloader) // self.args.gradient_accumulation_steps)
         if self.args.max_steps > 0:
