@@ -140,12 +140,13 @@ if __name__ == "__main__":
     dm = get_data_module(args)
     model = get_model(args, dm)
 
-    # Use PyTorch Lightning Trainer for standard training
+    # Use PyTorch Lightning Trainer with updated accelerator/ devices arguments
     trainer = pl.Trainer(
         max_epochs=args.epochs,
-        gpus=[args.device] if torch.cuda.is_available() else None,
+        accelerator="gpu" if torch.cuda.is_available() else "cpu",
+        devices=[args.device] if torch.cuda.is_available() else None,
         default_root_dir=args.output_dir,
-        logger=None  # Optionally, you can add a WandbLogger or TensorBoardLogger
+        logger=None  # Optionally, add a WandbLogger or TensorBoardLogger here.
     )
 
     trainer.fit(model, datamodule=dm)
