@@ -54,7 +54,7 @@ class MAC(Optimizer):
             forward_input: List[torch.Tensor],
             _forward_output: torch.Tensor
     ):
-        if not module.training or not torch.is_grad_enabled():
+        if not torch.is_grad_enabled():
             return
         if (self._step % self.Tcov) != 0:
             return

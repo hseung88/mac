@@ -10,6 +10,7 @@ import argparse
 import numpy as np
 import transformers
 import pytorch_lightning as pl
+import wandb
 
 from tqdm import tqdm
 from termcolor import colored
@@ -136,11 +137,15 @@ if __name__ == "__main__":
 
     logger.info(f"Training Arguments: {args}")
 
+    # If using wandb logging, initialize wandb before training
+    if args.logging.lower() == "wandb":
+        wandb.init(project="your_project_name", name=args.run_name, config=args)
+
     # Initialize data module and model
     dm = get_data_module(args)
     model = get_model(args, dm)
 
-    # Use PyTorch Lightning Trainer with updated accelerator/ devices arguments
+    # Use PyTorch Lightning Trainer with updated accelerator and devices arguments
     trainer = pl.Trainer(
         max_epochs=args.epochs,
         accelerator="gpu" if torch.cuda.is_available() else "cpu",
