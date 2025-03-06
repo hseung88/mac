@@ -40,7 +40,7 @@ def default_dev_objective(metrics: Dict) -> float:
 class Trainer(LinearHeadTrainer):
     """
     A simplified Trainer that uses standard backpropagation.
-    The zero-order methods have been removed. Optimizer and scheduler are created
+    Zero-order functions have been removed. Optimizer and scheduler are created
     based on training arguments.
     """
 

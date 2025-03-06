@@ -1,4 +1,5 @@
-import os, sys
+import os
+import sys
 import time
 import math
 import torch
@@ -41,15 +42,13 @@ def parse_arguments():
     parser.add_argument('--low_bit_adam', type=int, default=0, help='Use Adam with quantized states; options: 4 or 8')
     parser.add_argument('--trial', type=int, default=0, help='Trial number')
     parser.add_argument('--init_seed', type=int, default=None, help='Random seed for model initialization')
-
-    # Arguments for MAC optimizer
+    # Arguments for MAC optimizer and others
     parser.add_argument('--optimizer', type=str, default='mac', help='Optimizer to use: mac, sgd, or adam')
     parser.add_argument('--stat_decay', type=float, default=0.95, help='Statistic decay for MAC optimizer')
     parser.add_argument('--tcov', type=int, default=5, help='Tcov parameter for MAC optimizer')
     parser.add_argument('--tinv', type=int, default=5, help='Tinv parameter for MAC optimizer')
     parser.add_argument('--damping', type=float, default=1.0, help='Damping for MAC optimizer')
     parser.add_argument('--weight_decay', type=float, default=0.0, help='Weight decay')
-
     args = parser.parse_args()
     return args
 
@@ -112,6 +111,9 @@ if __name__ == "__main__":
     args.run_name += f'_trial_{args.trial}'
     args.output_dir = os.path.join('results', trimmed_model_name, args.task, args.run_name)
 
+    # Create output directory to avoid FileNotFoundError when creating the log file
+    os.makedirs(args.output_dir, exist_ok=True)
+
     # Setup logging
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
@@ -138,12 +140,12 @@ if __name__ == "__main__":
     dm = get_data_module(args)
     model = get_model(args, dm)
 
-    # Initialize PyTorch Lightning Trainer for standard training
+    # Use PyTorch Lightning Trainer for standard training
     trainer = pl.Trainer(
         max_epochs=args.epochs,
         gpus=[args.device] if torch.cuda.is_available() else None,
         default_root_dir=args.output_dir,
-        logger=None  # Optionally, add a WandbLogger or TensorBoardLogger here.
+        logger=None  # Optionally, you can add a WandbLogger or TensorBoardLogger
     )
 
     trainer.fit(model, datamodule=dm)

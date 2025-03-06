@@ -88,7 +88,7 @@ class GLUETransformer(LightningModule):
         return self.model(**inputs)
 
     def configure_params(self):
-        # For future use if you want to separate parameters.
+        # This method is kept for future use.
         model = self.model
         if self.full_parameter:
             self.params = [(n, p) for n, p in model.named_parameters()]
