@@ -126,7 +126,11 @@ class MAC(Optimizer):
             qkv_out = _forward_output.detach().clone()
             # _forward_output is assumed to be [B, N, 3 * dim]
             B, N, three_dim = qkv_out.shape
-            num_heads = self.model.blocks[0].attn.num_heads
+            if hasattr(self.model, 'blocks'):
+                num_heads = self.model.blocks[0].attn.num_heads
+            elif hasattr(self.model, 'layers'):
+                # Assume that the first stage is a sequential container of blocks
+                num_heads = self.model.layers[0][0].attn.num_heads
             head_dim = self.model.embed_dim // num_heads
             # Reshape and permute to get q, k, v separated.
             qkv = qkv_out.reshape(B, N, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)

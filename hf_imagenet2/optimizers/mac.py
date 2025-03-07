@@ -91,27 +91,23 @@ class MAC(Optimizer):
     ):
         if not module.training or not torch.is_grad_enabled():
             return
-
         if (self._step % self.Tcov) != 0:
             return
 
         group = self.param_groups[0]
         stat_decay = group['stat_decay']
 
-        actv = forward_input[0].data
+        actv = forward_input[0].detach().clone()
+        attn_qkv = ('attn.qkv' in self.layer_map[module]['name'])
+
         if isinstance(module, nn.Conv2d):
             depthwise = module.groups == actv.size(1)
             actv = extract_patches(actv, module.kernel_size, module.stride, module.padding, depthwise)
         elif isinstance(module, nn.Linear):
-            if actv.ndim > 2:  # for Linear layers in transformers
+            if actv.ndim > 2:  # Expect shape [B, N, d] for transformer inputs.
+                if attn_qkv:
+                    B, N, D = actv.shape
                 actv = actv.view(-1, actv.size(-1))
-        elif isinstance(module, nn.LayerNorm):
-            if actv.ndim > 2:
-                actv = actv.view(-1, actv.size(-1))
-            # Standardize inputs to mimic LayerNorm normalization.
-            mean = actv.mean(dim=-1, keepdim=True)
-            var = actv.var(dim=-1, unbiased=False, keepdim=True)
-            actv = (actv - mean) / torch.sqrt(var + module.eps)
 
         if isinstance(module, (nn.Conv2d, nn.Linear)) and module.bias is not None:
             ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)
@@ -123,6 +119,30 @@ class MAC(Optimizer):
         if 'exp_avg' not in state:
             state['exp_avg'] = torch.zeros_like(avg_actv, device=avg_actv.device)
         state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
+
+        if attn_qkv:
+            actv_b_avg = actv.view(B, N, actv.size(-1)).mean(dim=0)  # shape: [N, input_dim]
+
+            qkv_out = _forward_output.detach().clone()
+            # _forward_output is assumed to be [B, N, 3 * dim]
+            B, N, three_dim = qkv_out.shape
+            num_heads = self.model.blocks[0].attn.num_heads
+            head_dim = self.model.embed_dim // num_heads
+            # Reshape and permute to get q, k, v separated.
+            qkv = qkv_out.reshape(B, N, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
+            q, k, _ = qkv.unbind(0)  # Each is [B, num_heads, N, head_dim]
+
+            scale = 1.0 / math.sqrt(head_dim)
+            R = (q @ k.transpose(-2, -1)) * scale  # [B, num_heads, N, N]
+            attn = torch.softmax(R, dim=-1)
+            avg_attn = attn.mean(dim=(0, 1, 2))  # [N, ]
+
+            v_input = actv_b_avg.t() @ avg_attn
+
+            state = self.state[module]
+            if 'exp_avg_v' not in state:
+                state['exp_avg_v'] = torch.zeros_like(v_input, device=v_input.device)
+            state['exp_avg_v'].mul_(stat_decay).add_(v_input, alpha=1 - stat_decay)
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -140,7 +160,7 @@ class MAC(Optimizer):
             self.emastep += 1
 
         for layer in self.layer_map:
-            if isinstance(layer, (nn.Linear, nn.Conv2d, nn.LayerNorm)) and layer.weight.grad is not None:
+            if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
                 state = self.state[layer]
                 grad_mat = reshape_grad(layer)
 
@@ -150,8 +170,7 @@ class MAC(Optimizer):
                     if b_updated:
                         bias_correction = 1.0 - (stat_decay ** self.emastep)
                         exp_avg = state['exp_avg'].div(bias_correction).to(grad_mat.dtype)
-                        print(exp_avg.shape)
-                        sq_norm = torch.linalg.norm(exp_avg).pow(2)
+                        sq_norm = torch.dot(exp_avg, exp_avg)
 
                         if 'A_inv' not in state:
                             state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype)
@@ -163,16 +182,42 @@ class MAC(Optimizer):
 
                     A_inv = state['A_inv'].to(grad_mat.dtype)
 
-            if isinstance(layer, nn.LayerNorm):
-                v = A_inv @ grad_mat
-                layer.weight.grad.data.copy_(v.view_as(layer.weight))
-            else:
-                v = grad_mat @ A_inv
+                if layer != self.first_layer and 'attn.qkv' in self.layer_map[layer]['name']:
+                    embed_dim = self.model.embed_dim
+
+                    # Split grad_mat into q, k, and v parts
+                    q_grad_full = grad_mat[:embed_dim, :]  # shape: [embed_dim, input_dim]
+                    k_grad_full = grad_mat[embed_dim:2 * embed_dim, :]  # shape: [embed_dim, input_dim]
+                    v_grad_full = grad_mat[2 * embed_dim:, :]  # shape: [embed_dim, input_dim]
+
+                    if b_updated:
+                        bias_correction = 1.0 - (stat_decay ** self.emastep)
+                        # Update per-head inverse preconditioners
+                        exp_avg_v = state['exp_avg_v'].div(bias_correction).to(grad_mat.dtype)  # [num_heads, input_dim]
+                        sq_norm_v = torch.dot(exp_avg_v, exp_avg_v)
+
+                        if 'V_inv' not in state:
+                            state['V_inv'] = torch.eye(exp_avg_v.size(0), device=exp_avg_v.device, dtype=exp_avg_v.dtype)
+                        else:
+                            state['V_inv'].copy_(torch.eye(exp_avg_v.size(0), device=exp_avg_v.device, dtype=exp_avg_v.dtype))
+
+                        state['V_inv'].sub_(torch.outer(exp_avg_v, exp_avg_v).div_(damping + sq_norm_v))
+
+                    V_inv = state['V_inv'].to(grad_mat.dtype)
+
+                    q_grad_precond = q_grad_full @ A_inv
+                    k_grad_precond = k_grad_full @ A_inv
+                    v_grad_precond = v_grad_full @ V_inv
+
+                    new_grad = torch.cat([q_grad_precond, k_grad_precond, v_grad_precond], dim=0)
+                    v = new_grad
+                else:
+                    v = grad_mat @ A_inv
+
                 if layer.bias is not None:
-                    v_weight = v[:, :-1]
-                    v_bias = v[:, -1:]
-                    layer.weight.grad.data.copy_(v_weight.view_as(layer.weight))
-                    layer.bias.grad.data.copy_(v_bias.view_as(layer.bias))
+                    v = [v[:, :-1], v[:, -1:]]
+                    layer.weight.grad.data.copy_(v[0].view_as(layer.weight))
+                    layer.bias.grad.data.copy_(v[1].view_as(layer.bias))
                 else:
                     layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
 
