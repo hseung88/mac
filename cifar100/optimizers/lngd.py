@@ -112,8 +112,6 @@ class LNGD(Optimizer):
         else:
             a_norm_sq = actv.pow(2).sum(dim=1)  # [B, ]
 
-        # Use id(module) as the unique layer key
-        #layer_name = self.layer_map[module]['name']
         state = self.state[module]
         if 'actv' not in state:
             state['actv'] = torch.zeros_like(actv, device=actv.device)
@@ -149,8 +147,6 @@ class LNGD(Optimizer):
             g_diag = g.pow(2) # [B, d_out]
             g_norm_sq = g.pow(2).sum(dim=1)  # [B, ]
 
-        # Use id(module) as the unique layer key
-        #layer_name = self.layer_map[module]['name']
         state = self.state[module]
         if 'g_diag' not in state:
             state['g_diag'] = torch.zeros_like(g_diag, device=g_diag.device)
