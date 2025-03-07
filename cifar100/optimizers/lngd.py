@@ -184,19 +184,18 @@ class LNGD(Optimizer):
 
                     if isinstance(layer, nn.Conv2d):
                         cov = torch.einsum('bij,bik->bjk', actv, actv) / actv.size(1)
-                        print(cov)
                     else:
                         cov = torch.einsum('bi,bj->bij', actv, actv) / actv.size(1)
                     #cov = torch.einsum('bi,bj->bij', actv, actv)
 
                     phi = (cov * g_norm_sq.view(-1, 1, 1)).mean(dim=0)
-                    print(phi)
                     psi = (g_diag * a_norm_sq.view(-1, 1)).mean(dim=0) / (a_norm_sq * g_norm_sq).mean(dim=0)
 
-                    #damping_phi = (torch.trace(phi) / grad_mat.view(-1).size(0)).clamp(self.nu1, self.nu2)
-                    damping_phi = (torch.trace(phi) / phi.size(0)).clamp(self.nu1, self.nu2)
-                    #damping_psi = (torch.sum(psi) / grad_mat.view(-1).size(0)).clamp(self.nu1, self.nu2)
-                    damping_psi = (torch.sum(psi) / psi.size(0)).clamp(self.nu1, self.nu2)
+
+                    #damping_phi = (torch.trace(phi) / phi.size(0)).clamp(self.nu1, self.nu2)
+                    damping_phi = (torch.trace(phi) / phi.size(0))
+                    #damping_psi = (torch.sum(psi) / psi.size(0)).clamp(self.nu1, self.nu2)
+                    damping_psi = (torch.sum(psi) / psi.size(0))
 
                     phi.add_(damping_phi)
                     psi.add_(damping_psi).reciprocal_()
