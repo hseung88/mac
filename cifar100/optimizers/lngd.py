@@ -105,10 +105,10 @@ class LNGD(Optimizer):
             # Compute original batch size and number of patches per image
             B = forward_input[0].size(0)
             P = actv.size(0) // B
-            # Reshape to [B, P, d_in]
+            # Reshape to [B, oH x oW, d_in]
             actv = actv.view(B, P, actv.size(-1))
-            actv = actv.mean(dim=1)
-            a_norm_sq = actv.pow(2).sum(dim=(1, 2))  # [B, ]
+            #actv = actv.mean(dim=1)
+            a_norm_sq = actv.mean(dim=1).pow(2).sum(dim=1)  # [B, ]
         else:
             a_norm_sq = actv.pow(2).sum(dim=1)  # [B, ]
 
@@ -142,7 +142,7 @@ class LNGD(Optimizer):
             # Reshape to [B, H x W, d_out]
             g = g.view(B, P, g.size(-1))
             g_diag = g.pow(2).mean(dim=1)
-            g_norm_sq = g.pow(2).sum(dim=(1,2))  # [B, ]
+            g_norm_sq = g.mean(dim=1).pow(2).sum(dim=1)  # [B, ]
         else:
             g_diag = g.pow(2) # [B, d_out]
             g_norm_sq = g.pow(2).sum(dim=1)  # [B, ]
@@ -182,11 +182,11 @@ class LNGD(Optimizer):
                     a_norm_sq = state['a_norm_sq'].div(bias_correction) # [B, ]
                     g_norm_sq = state['g_norm_sq'].div(bias_correction) # [B, ]
 
-                    #if isinstance(layer, nn.Conv2d):
-                    #    cov = torch.einsum('bij,bik->bjk', actv, actv)
-                    #else:
-                    #    cov = torch.einsum('bi,bj->bij', actv, actv)
-                    cov = torch.einsum('bi,bj->bij', actv, actv)
+                    if isinstance(layer, nn.Conv2d):
+                        cov = torch.einsum('bij,bik->bjk', actv, actv)
+                    else:
+                        cov = torch.einsum('bi,bj->bij', actv, actv)
+                    #cov = torch.einsum('bi,bj->bij', actv, actv)
 
                     phi = (cov * g_norm_sq.view(-1, 1, 1)).mean(dim=0)
                     psi = (g_diag * a_norm_sq.view(-1, 1)).mean(dim=0) / (a_norm_sq * g_norm_sq).mean(dim=0)
