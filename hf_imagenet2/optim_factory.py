@@ -164,16 +164,6 @@ def optimizer_kwargs(cfg):
         kwargs['betas'] = cfg.opt_betas
     if getattr(cfg, 'layer_decay', None) is not None:
         kwargs['layer_decay'] = cfg.layer_decay
-    if getattr(cfg, 'damping', None) is not None:
-        kwargs['damping'] = cfg.damping
-    if getattr(cfg, 'tcov', None) is not None:
-        kwargs['Tcov'] = cfg.tcov
-    if getattr(cfg, 'tinv', None) is not None:
-        kwargs['Tinv'] = cfg.tinv
-    if getattr(cfg, 'stat_decay', None) is not None:
-        kwargs['stat_decay'] = cfg.stat_decay
-    #if getattr(cfg, 'rank_size', None) is not None:
-    #    kwargs['rank_size'] = cfg.rank_size
     if getattr(cfg, 'opt_args', None) is not None:
         kwargs.update(cfg.opt_args)
     if getattr(cfg, 'opt_foreach', None) is not None:
