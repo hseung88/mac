@@ -192,10 +192,9 @@ class LNGD(Optimizer):
                     psi = (g_diag * a_norm_sq.view(-1, 1)).mean(dim=0) / (a_norm_sq * g_norm_sq).mean(dim=0)
 
 
-                    #damping_phi = (torch.trace(phi) / phi.size(0)).clamp(self.nu1, self.nu2)
-                    damping_phi = self.mu
-                    #damping_psi = (torch.sum(psi) / psi.size(0)).clamp(self.nu1, self.nu2)
-                    damping_psi = self.mu
+                    damping_phi = (torch.trace(phi) / phi.size(0)).clamp(self.nu1, self.nu2)
+                    damping_phi = torch.eye(phi.size(0), device=phi.device) * damping_phi
+                    damping_psi = (torch.sum(psi) / psi.size(0)).clamp(self.nu1, self.nu2)
 
                     phi.add_(damping_phi)
                     psi.add_(damping_psi).reciprocal_()
