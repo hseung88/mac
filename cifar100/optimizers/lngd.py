@@ -103,11 +103,12 @@ class LNGD(Optimizer):
 
         if isinstance(module, nn.Conv2d):
             # Compute original batch size and number of patches per image
-            B = forward_input[0].size(0)
-            P = actv.size(0) // B
+            #B = forward_input[0].size(0)
+            #P = actv.size(0) // B
             # Reshape to [B, P, d_in]
-            actv = actv.view(B, P, actv.size(-1))
-            a_norm_sq = actv.pow(2).sum(dim=(1,2))  # [B, ]
+            #actv = actv.view(B, P, actv.size(-1))
+            #a_norm_sq = actv.pow(2).sum(dim=(1,2))  # [B, ]
+            a_norm_sq = actv.pow(2).sum(dim=1)
         else:
             a_norm_sq = actv.pow(2).sum(dim=1)  # [B, ]
 
