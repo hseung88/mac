@@ -1,5 +1,6 @@
 import math
 from typing import List
+import re
 import logging as log
 import torch
 import torch.nn as nn
@@ -126,11 +127,16 @@ class MAC(Optimizer):
             qkv_out = _forward_output.detach().clone()
             # _forward_output is assumed to be [B, N, 3 * dim]
             B, N, three_dim = qkv_out.shape
-            if hasattr(self.model, 'blocks'):
+            if hasattr(self.model, 'layers'): # for swin-transformer
+                layer_name = self.layer_map[module]['name']
+                match = re.search(r'layers\.(\d+)\.blocks\.(\d+)', layer_name)
+                stage_idx = int(match.group(1))
+                block_idx = int(match.group(2))
+                num_heads = self.model.layers[stage_idx].blocks[block_idx].attn.num_heads
+                head_dim = self.model.layers[stage_idx].blocks[block_idx].dim // num_heads
+            elif hasattr(self.model, 'blocks'): # for deit
                 num_heads = self.model.blocks[0].attn.num_heads
-            elif hasattr(self.model, 'layers'):
-                num_heads = self.model.layers[0].blocks[0].attn.num_heads
-            head_dim = self.model.embed_dim // num_heads
+                head_dim = self.model.embed_dim // num_heads
             # Reshape and permute to get q, k, v separated.
             qkv = qkv_out.reshape(B, N, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
             q, k, _ = qkv.unbind(0)  # Each is [B, num_heads, N, head_dim]
