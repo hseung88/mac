@@ -182,9 +182,9 @@ class LNGD(Optimizer):
                     g_norm_sq = state['g_norm_sq'].div(bias_correction) # [B, ]
 
                     if isinstance(layer, nn.Conv2d):
-                        cov = torch.einsum('bij,bik->bjk', actv, actv) #/ actv.size(1)
+                        cov = torch.einsum('bij,bik->bjk', actv, actv) / actv.size(1)
                     else:
-                        cov = torch.einsum('bi,bj->bij', actv, actv) #/ actv.size(1)
+                        cov = torch.einsum('bi,bj->bij', actv, actv) / actv.size(1)
 
                     phi = (cov * g_norm_sq.view(-1, 1, 1)).mean(dim=0)
                     psi = (g_diag * a_norm_sq.view(-1, 1)).mean(dim=0) / (a_norm_sq * g_norm_sq).mean(dim=0)
