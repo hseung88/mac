@@ -187,7 +187,8 @@ class LNGD(Optimizer):
                     g_norm_sq = state['g_norm_sq'].div(bias_correction) # [B, ]
 
                     if isinstance(layer, nn.Conv2d):
-                        cov = torch.einsum('bij,bik->bjk', actv, actv)
+                        #cov = torch.einsum('bij,bik->bjk', actv, actv)
+                        cov = torch.einsum('bi,bj->bij', actv, actv)
                     else:
                         cov = torch.einsum('bi,bj->bij', actv, actv)
 
