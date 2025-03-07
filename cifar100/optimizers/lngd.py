@@ -193,9 +193,9 @@ class LNGD(Optimizer):
 
 
                     #damping_phi = (torch.trace(phi) / phi.size(0)).clamp(self.nu1, self.nu2)
-                    damping_phi = (torch.trace(phi) / phi.size(0))
+                    damping_phi = self.mu
                     #damping_psi = (torch.sum(psi) / psi.size(0)).clamp(self.nu1, self.nu2)
-                    damping_psi = (torch.sum(psi) / psi.size(0))
+                    damping_psi = self.mu
 
                     phi.add_(damping_phi)
                     psi.add_(damping_psi).reciprocal_()
