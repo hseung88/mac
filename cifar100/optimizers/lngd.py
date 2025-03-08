@@ -191,10 +191,10 @@ class LNGD(Optimizer):
 
 
                     damping_phi = (torch.trace(phi) / phi.size(0)).clamp(self.nu1, self.nu2)
-                    damping_phi = torch.eye(phi.size(0), device=phi.device) * damping_phi
+                    #damping_phi = torch.eye(phi.size(0), device=phi.device) * damping_phi
                     damping_psi = (torch.sum(psi) / psi.size(0)).clamp(self.nu1, self.nu2)
 
-                    phi.add_(damping_phi)
+                    phi.diagonal().add_(damping_phi)
                     psi.add_(damping_psi).reciprocal_()
 
                     state['A_inv'] = torch.linalg.inv(phi)
@@ -203,12 +203,12 @@ class LNGD(Optimizer):
 
                 A_inv = state['A_inv']
                 G_inv = state['G_inv']
-                v_alr = G_inv @ grad_mat @ A_inv
+                v = G_inv @ grad_mat @ A_inv
 
                 # Adaptive layer-wise learning rate: dot_val / (dot_val ** 2 + mu)
-                #dot_val = torch.dot(v.view(-1), grad_mat.view(-1))
-                #adaptive_lr = dot_val / (dot_val ** 2 + self.mu)
-                #v_alr = adaptive_lr * v
+                dot_val = torch.dot(v.view(-1), grad_mat.view(-1))
+                adaptive_lr = dot_val / (dot_val ** 2 + self.mu)
+                v_alr = adaptive_lr * v
 
                 if layer.bias is not None:
                     v_alr = [v_alr[:, :-1], v_alr[:, -1:]]
