@@ -1,6 +1,4 @@
 import argparse
-import math
-import os
 import random
 import numpy as np
 from datasets import load_dataset
@@ -16,7 +14,7 @@ from transformers import (
     TrainingArguments,
     DataCollatorForSeq2Seq,
 )
-from functools import partial
+from transformers import AutoConfig
 from optimizers.mac import MAC
 
 
@@ -106,32 +104,38 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained("t5-small")
 
     # 3. Build the Transformer from scratch: settings similar to Fairseq's transformer_iwslt_de_en
-    # with dropout set to 0.3.
-    encoder_config = {
+    encoder_config_dict = {
         "vocab_size": tokenizer.vocab_size,
-        "d_model": 512,
+        "hidden_size": 512,  # d_model
         "num_hidden_layers": 6,
         "num_attention_heads": 8,
-        "ffn_dim": 2048,
-        "dropout": 0.3,
-        "activation_function": "relu",
+        "intermediate_size": 2048,  # ffn_dim
+        "hidden_dropout_prob": 0.3,  # dropout
+        "hidden_act": "relu",  # activation_function
         "max_position_embeddings": 1024,
     }
-    decoder_config = {
+
+    decoder_config_dict = {
         "vocab_size": tokenizer.vocab_size,
-        "d_model": 512,
+        "hidden_size": 512,
         "num_hidden_layers": 6,
         "num_attention_heads": 8,
-        "ffn_dim": 2048,
-        "dropout": 0.3,
-        "activation_function": "relu",
+        "intermediate_size": 2048,
+        "hidden_dropout_prob": 0.3,
+        "hidden_act": "relu",
         "max_position_embeddings": 1024,
         "is_decoder": True,
         "add_cross_attention": True,
     }
+
+    # Convert dictionaries to configuration objects
+    encoder_config_obj = AutoConfig.from_dict(encoder_config_dict)
+    decoder_config_obj = AutoConfig.from_dict(decoder_config_dict)
+
+    # Create the encoder-decoder configuration from the config objects
     config = EncoderDecoderConfig.from_encoder_decoder_configs(
-        encoder_config=encoder_config,
-        decoder_config=decoder_config,
+        encoder_config=encoder_config_obj,
+        decoder_config=decoder_config_obj,
     )
     model = EncoderDecoderModel(config)
 
