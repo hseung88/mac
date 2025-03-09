@@ -83,12 +83,12 @@ def build_dataset(args):
     trainset = torchvision.datasets.CIFAR10(root=args.data_dir, train=True, download=True,
                                             transform=transform_train)
     train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batchsize, shuffle=True,
-                                               num_workers=4, pin_memory=True)
+                                               num_workers=4, pin_memory=True, drop_last=True)
 
     testset = torchvision.datasets.CIFAR10(root=args.data_dir, train=False, download=True,
                                            transform=transform_test)
     test_loader = torch.utils.data.DataLoader(testset, batch_size=args.batchsize, shuffle=False,
-                                              num_workers=4, pin_memory=True)
+                                              num_workers=4, pin_memory=True, drop_last=True)
 
     return train_loader, test_loader
 
