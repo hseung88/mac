@@ -57,8 +57,10 @@ class EigenAnalyzer:
 
             scale = 1.0 / math.sqrt(head_dim)
             R = (q @ k.transpose(-2, -1)) * scale  # [B, num_heads, N, N]
-            attn = torch.softmax(R, dim=-1)
-            avg_attn = attn.mean(dim=(0, 1, 2))  # [N, ]
+            #attn = torch.softmax(R, dim=-1)
+            #avg_attn = attn.mean(dim=(0, 1, 2))  # [N, ]
+            attn = torch.softmax(R, dim=-1).mean(dim=(0,1))
+            avg_attn = attn.mean(dim=0)  # [N, ]
 
             if module in self.attn:
                 self.attn[module] += attn
