@@ -49,16 +49,8 @@ class EigenAnalyzer:
             qkv_out = _forward_output.detach().clone()
             # _forward_output is assumed to be [B, N, 3 * dim]
             B, N, three_dim = qkv_out.shape
-            if hasattr(net, 'layers'): # for swin-transformer
-                layer_name = layer_map[module]['name']
-                match = re.search(r'layers\.(\d+)\.blocks\.(\d+)', layer_name)
-                stage_idx = int(match.group(1))
-                block_idx = int(match.group(2))
-                num_heads = net.layers[stage_idx].blocks[block_idx].attn.num_heads
-                head_dim = net.layers[stage_idx].blocks[block_idx].dim // num_heads
-            elif hasattr(net, 'blocks'): # for deit
-                num_heads = net.blocks[0].attn.num_heads
-                head_dim = net.embed_dim // num_heads
+            num_heads = 3
+            head_dim = 192 // num_heads
             # Reshape and permute to get q, k, v separated.
             qkv = qkv_out.reshape(B, N, 3, num_heads, head_dim).permute(2, 0, 3, 1, 4)
             q, k, _ = qkv.unbind(0)  # Each is [B, num_heads, N, head_dim]
