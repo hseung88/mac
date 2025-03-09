@@ -116,6 +116,19 @@ class DataTrainingArguments:
     max_eval_samples: Optional[int] = field(
         default=None, metadata={"help": "Truncate the number of evaluation examples for debugging."}
     )
+    # Additional fields for translation tasks
+    source_lang: Optional[str] = field(
+        default=None, metadata={"help": "Source language id for translation."}
+    )
+    target_lang: Optional[str] = field(
+        default=None, metadata={"help": "Target language id for translation."}
+    )
+    source_prefix: Optional[str] = field(
+        default=None, metadata={"help": "A prefix to add before every source text."}
+    )
+    dataset_config_name: Optional[str] = field(
+        default=None, metadata={"help": "The configuration name of the dataset."}
+    )
 
     def __post_init__(self):
         if self.dataset_name is None and self.train_file is None:
