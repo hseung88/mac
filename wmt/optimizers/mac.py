@@ -1,10 +1,9 @@
-import math
 from typing import List
 import logging as log
 import torch
 import torch.nn as nn
 from torch.optim import Optimizer
-from .utils.mac_utils import extract_patches, reshape_grad, build_layer_map, momentum_step
+from .utils.mac_utils import extract_patches, reshape_grad, build_layer_map, trainable_modules, momentum_step
 
 
 class MAC(Optimizer):
@@ -48,39 +47,75 @@ class MAC(Optimizer):
         self._model = model
         self.layer_map = build_layer_map(model, fwd_hook_fn=self._capture_activation)
 
+    def _configure(self, train_loader, net, device):
+        n_batches = len(train_loader)
+        cov_mat = None
+
+        # Handle the case when the model is wrapped in DistributedDataParallel
+        # if hasattr(net, 'module'):
+        #    net = net.module
+
+        _, first_layer = next(trainable_modules(net))
+
+        # Directly capture the first layer (patch embedding) of ViTs
+        # first_layer = net.patch_embed.proj
+
+        with torch.no_grad():
+            for images, _ in train_loader:
+                images = images.to(device, non_blocking=True)
+                actv = extract_patches(images, first_layer.kernel_size,
+                                       first_layer.stride, first_layer.padding,
+                                       depthwise=False)
+                if first_layer.bias is not None:
+                    ones = actv.new_ones((actv.shape[0], 1))
+                    actv = torch.cat([actv, ones], dim=1)
+
+                # A = torch.einsum('ij,jk->ik', actv.t(), actv) / actv.size(0)  # Optimized matrix multiplication
+                A = torch.matmul(actv.t(), actv) / actv.size(0)
+                if cov_mat is None:
+                    cov_mat = A
+                else:
+                    cov_mat.add_(A)
+
+            cov_mat /= n_batches
+
+        self.first_layer = first_layer
+        eye_matrix = torch.eye(cov_mat.size(0), device=device, dtype=cov_mat.dtype)
+        self.input_cov_inv = torch.linalg.inv(cov_mat + self.damping * eye_matrix)
+        self.model = net
+        self.layer_map[first_layer]['fwd_hook'].remove()
+
     def _capture_activation(
             self,
             module: nn.Module,
             forward_input: List[torch.Tensor],
             _forward_output: torch.Tensor
     ):
-        if not torch.is_grad_enabled():
+        if not module.training or not torch.is_grad_enabled():
             return
+
         if (self._step % self.Tcov) != 0:
             return
 
         group = self.param_groups[0]
         stat_decay = group['stat_decay']
 
-        actv = forward_input[0].detach().clone()
-        attn_qkv = ('attn.qkv' in self.layer_map[module]['name'])
-
+        actv = forward_input[0].data
         if isinstance(module, nn.Conv2d):
             depthwise = module.groups == actv.size(1)
             actv = extract_patches(actv, module.kernel_size, module.stride, module.padding, depthwise)
         elif isinstance(module, nn.Linear):
-            if actv.ndim > 2:  # Expect shape [B, N, d] for transformer inputs.
-                if attn_qkv:
-                    B, N, D = actv.shape
+            if actv.ndim > 2:  # linear layers in transformers
                 actv = actv.view(-1, actv.size(-1))
 
-        if isinstance(module, (nn.Conv2d, nn.Linear)) and module.bias is not None:
+        if module.bias is not None:
             ones = torch.ones((actv.size(0), 1), device=actv.device, dtype=actv.dtype)
             actv = torch.cat([actv, ones], dim=1)
 
         avg_actv = actv.mean(dim=0)
 
-        state = self.state[module]
+        layer_name = self.layer_map[module]['name']
+        state = self.state[layer_name]
         if 'exp_avg' not in state:
             state['exp_avg'] = torch.zeros_like(avg_actv, device=avg_actv.device)
         state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
@@ -101,24 +136,28 @@ class MAC(Optimizer):
             self.emastep += 1
 
         for layer in self.layer_map:
+            layer_name = self.layer_map[layer]['name']
             if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
-                state = self.state[layer]
+                state = self.state[layer_name]
                 grad_mat = reshape_grad(layer)
 
-                if b_updated:
-                    bias_correction = 1.0 - (stat_decay ** self.emastep)
-                    exp_avg = state['exp_avg'].div(bias_correction).to(grad_mat.dtype)
-                    sq_norm = torch.dot(exp_avg, exp_avg)
+                if layer == self.first_layer:
+                    A_inv = self.input_cov_inv
+                else:
+                    if b_updated:
+                        bias_correction = 1.0 - (stat_decay ** self.emastep)
+                        exp_avg = state['exp_avg'].div(bias_correction)
+                        sq_norm = torch.linalg.norm(exp_avg).pow(2)
 
-                    if 'A_inv' not in state:
-                        state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype)
-                    else:
-                        state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype))
+                        if 'A_inv' not in state:
+                            state['A_inv'] = torch.eye(exp_avg.size(0), device=exp_avg.device)
+                        else:
+                            state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device))
 
-                    state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
-                    #state['A_inv'].div_(damping)
+                        state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping+ sq_norm))
+                        #state['A_inv'].div_(damping)
 
-                A_inv = state['A_inv'].to(grad_mat.dtype)
+                    A_inv = state['A_inv']
 
                 v = grad_mat @ A_inv
 
