@@ -17,7 +17,7 @@ class MAC(Optimizer):
             stat_decay=0.95,
             damping=1.0,
             weight_decay=5e-4,
-            Tcov=5,
+            #Tcov=5,
             Tinv=50,
     ):
         if lr < 0.0:
@@ -33,7 +33,7 @@ class MAC(Optimizer):
 
         self._model = None
         self.damping = damping
-        self.Tcov = Tcov
+        #self.Tcov = Tcov
         self.Tinv = Tinv
         self._step = 0
         self.emastep = 0
@@ -92,7 +92,7 @@ class MAC(Optimizer):
     ):
         if not module.training or not torch.is_grad_enabled():
             return
-        if (self._step % self.Tcov) != 0:
+        if (self._step % self.Tinv) != 0:
             return
 
         group = self.param_groups[0]
@@ -119,7 +119,8 @@ class MAC(Optimizer):
         state = self.state[module]
         if 'exp_avg' not in state:
             state['exp_avg'] = torch.zeros_like(avg_actv, device=avg_actv.device)
-        state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
+        #state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
+        state['exp_avg'] = avg_actv
 
         if attn_qkv:
             actv_b_avg = actv.view(B, N, actv.size(-1)).mean(dim=0)  # shape: [N, input_dim]
@@ -151,7 +152,8 @@ class MAC(Optimizer):
             state = self.state[module]
             if 'exp_avg_v' not in state:
                 state['exp_avg_v'] = torch.zeros_like(v_input, device=v_input.device)
-            state['exp_avg_v'].mul_(stat_decay).add_(v_input, alpha=1 - stat_decay)
+            #state['exp_avg_v'].mul_(stat_decay).add_(v_input, alpha=1 - stat_decay)
+            state['exp_avg_v'] = v_input
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -161,8 +163,8 @@ class MAC(Optimizer):
                 loss = closure()
 
         b_updated = False
-        group = self.param_groups[0]
-        stat_decay = group['stat_decay']
+        #group = self.param_groups[0]
+        #stat_decay = group['stat_decay']
         damping = self.damping
         if self._step % self.Tinv == 0:
             b_updated = True
@@ -177,8 +179,9 @@ class MAC(Optimizer):
                     A_inv = self.input_cov_inv.to(grad_mat.dtype)
                 else:
                     if b_updated:
-                        bias_correction = 1.0 - (stat_decay ** self.emastep)
-                        exp_avg = state['exp_avg'].div(bias_correction).to(grad_mat.dtype)
+                        #bias_correction = 1.0 - (stat_decay ** self.emastep)
+                        #exp_avg = state['exp_avg'].div(bias_correction).to(grad_mat.dtype)
+                        exp_avg = state['exp_avg'].to(grad_mat.dtype)
                         sq_norm = torch.dot(exp_avg, exp_avg)
 
                         if 'A_inv' not in state:
@@ -200,9 +203,10 @@ class MAC(Optimizer):
                     v_grad_full = grad_mat[2 * embed_dim:, :]  # shape: [embed_dim, input_dim]
 
                     if b_updated:
-                        bias_correction = 1.0 - (stat_decay ** self.emastep)
+                        #bias_correction = 1.0 - (stat_decay ** self.emastep)
                         # Update per-head inverse preconditioners
-                        exp_avg_v = state['exp_avg_v'].div(bias_correction).to(grad_mat.dtype)  # [num_heads, input_dim]
+                        #exp_avg_v = state['exp_avg_v'].div(bias_correction).to(grad_mat.dtype)  # [num_heads, input_dim]
+                        exp_avg_v = state['exp_avg_v'].to(grad_mat.dtype)
                         sq_norm_v = torch.dot(exp_avg_v, exp_avg_v)
 
                         if 'V_inv' not in state:
