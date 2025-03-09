@@ -166,16 +166,16 @@ def momentum_step(optimizer):
                 continue
 
             d_p = p.grad.data
-            #d_p.add_(p.data, alpha=weight_decay)
-
             param_state = optimizer.state[p]
 
             if 'momentum_buffer' not in param_state:
                 param_state['momentum_buffer'] = torch.zeros_like(p)
             d_p = param_state['momentum_buffer'].mul_(momentum).add_(d_p)
 
-            p.data.mul_(1-step_size*weight_decay)
+            if p.ndim > 1:
+                p.data.mul_(1 - step_size * weight_decay)
             p.data.add_(d_p, alpha=-step_size)
+
 
 
 def sign_gd_step(optimizer):
