@@ -166,8 +166,8 @@ def optimizer_kwargs(cfg):
         kwargs['layer_decay'] = cfg.layer_decay
     if getattr(cfg, 'damping', None) is not None:
         kwargs['damping'] = cfg.damping
-    #if getattr(cfg, 'tcov', None) is not None:
-    #    kwargs['Tcov'] = cfg.tcov
+    if getattr(cfg, 'tcov', None) is not None:
+        kwargs['Tcov'] = cfg.tcov
     if getattr(cfg, 'tinv', None) is not None:
         kwargs['Tinv'] = cfg.tinv
     if getattr(cfg, 'stat_decay', None) is not None:
