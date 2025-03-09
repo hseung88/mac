@@ -38,7 +38,7 @@ def get_parser():
     parser.add_argument('--data_dir', default='./data', type=str)
     parser.add_argument('--epoch', default=200, type=int, help='Total number of training epochs')
     parser.add_argument('--model', default='resnet', type=str, help='model',
-                        choices=['resnet20', 'resnet32','resnet110','resnet', 'densenet', 'wrn', 'deit_tiny'])
+                        choices=['resnet20', 'resnet32','resnet110','resnet', 'densenet', 'wrn'])
     parser.add_argument('--optim', default='sgd', type=str, help='optimizer',
                         choices=['sgd', 'adam', 'adamw', 'adan', 'kfac', 'foof', 'adaact', 'shaper',
                                  'mac', 'smac', 'sgdhess', 'adahessian', 'eva', 'nysact_g', 'nysact_s',
@@ -175,7 +175,7 @@ def build_model(args, device, ckpt=None):
         'resnet': ResNet34,
         'densenet': DenseNet121,
         'wrn': wrn_28_10,
-        'deit_tiny': DeiT32Tiny
+        #'deit_tiny': DeiT32Tiny
         #'efficientnet': efficientnet_cifar,
         }[args.model]()
     net = net.to(device)
