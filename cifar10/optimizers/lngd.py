@@ -191,10 +191,10 @@ class LNGD(Optimizer):
 
 
                     damping_phi = (torch.trace(phi) / phi.size(0)).clamp(self.nu1, self.nu2)
-                    damping_phi = torch.eye(phi.size(0), device=phi.device) * damping_phi
+                    #damping_phi = torch.eye(phi.size(0), device=phi.device) * damping_phi
                     damping_psi = (torch.sum(psi) / psi.size(0)).clamp(self.nu1, self.nu2)
 
-                    phi.add_(damping_phi)
+                    phi.diagonal().add_(damping_phi)
                     psi.add_(damping_psi).reciprocal_()
 
                     state['A_inv'] = torch.linalg.inv(phi)

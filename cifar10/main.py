@@ -39,7 +39,7 @@ def get_parser():
     parser.add_argument('--optim', default='sgd', type=str, help='optimizer',
                         choices=['sgd', 'adam', 'adamw', 'kfac', 'foof', 'adaact', 'shaper',
                                  'mac', 'smac', 'sgdhess', 'adahessian', 'eva', 'nysact_g', 'nysact_s',
-                                 'shampoo', 'sketchysgd', 'soap'])
+                                 'shampoo', 'sketchysgd', 'soap', 'lngd'])
     parser.add_argument('--run', default=0, type=int, help='number of runs')
     parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
     parser.add_argument('--eps', default=1e-8, type=float, help='eps for numerical stability')
@@ -51,6 +51,9 @@ def get_parser():
                         help='weight decay for optimizers')
     parser.add_argument('--rank', default=5, type=int, help='the number of subcolumns used in nysact')
     parser.add_argument('--damping', default=0.01, type=float, help='damping factor for kfac and foof')
+    parser.add_argument('--mu', default=0.03, type=float, help='damping factor adaptive lr')
+    parser.add_argument('--nu1', default=1e-5, type=float, help='damping lower threshold')
+    parser.add_argument('--nu2', default=1e-2, type=float, help='damping upper threshold')
     parser.add_argument('--tcov', default=5, type=int, help='preconditioner update period for kfac and foof')
     parser.add_argument('--tinv', default=50, type=int, help='preconditioner inverse period for kfac and foof')
     parser.add_argument('--update', default=1, type=int, help='preconditioner update and inverse period for adaact') 
@@ -92,7 +95,7 @@ def build_dataset(args):
 
 def get_ckpt_name(model='resnet', optimizer='sgd', lr=0.1, momentum=0.9, stat_decay=0.9,
                   beta1=0.9, beta2=0.999, eps=1e-8, weight_decay=5e-4, rank=5,
-                  damping=0.01, tcov=5, tinv=50, update=1, batchsize=128,
+                  damping=0.01, tcov=5, tinv=50, update=1, batchsize=128, mu=0.03, nu1=1e-5, nu2=1e-2,
                   epoch=200, run=0, lr_scheduler='cosine'):
     name = {
         'sgd': 'lr{}-momentum{}-wdecay{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
@@ -111,6 +114,8 @@ def get_ckpt_name(model='resnet', optimizer='sgd', lr=0.1, momentum=0.9, stat_de
             lr, momentum, stat_decay, damping, weight_decay, tcov, tinv, lr_scheduler, batchsize, epoch, run),
         'smac': 'lr{}-momentum{}-stat_decay{}-damping{}-wdecay{}-tcov{}-tinv{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
             lr, momentum, stat_decay, damping, weight_decay, tcov, tinv, lr_scheduler, batchsize, epoch, run),
+        'lngd': 'lr{}-momentum{}-stat_decay{}-mu{}-wdecay{}-tcov{}-tinv{}-nu1{}-nu2{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
+            lr, momentum, stat_decay, mu, weight_decay, tcov, tinv, nu1, nu2, lr_scheduler, batchsize, epoch, run),
         'sgdhess': 'lr{}-momentum{}-wdecay{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
             lr, momentum, weight_decay, lr_scheduler, batchsize, epoch, run),
         'adahessian': 'lr{}-betas{}-{}-wdecay{}-eps{}-lr_sched{}-batchsize{}-epoch{}-run{}'.format(
@@ -189,6 +194,10 @@ def create_optimizer(args, model_params):
     elif args.optim == 'smac':
         return SMAC(model_params, args.lr, args.momentum, stat_decay=args.stat_decay, 
                          damping=args.damping, weight_decay=args.weight_decay, Tcov=args.tcov, Tinv=args.tinv)
+    elif args.optim == 'lngd':
+        return LNGD(model_params, args.lr, args.momentum, stat_decay=args.stat_decay,
+                         mu=args.mu, weight_decay=args.weight_decay, Tcov=args.tcov, Tinv=args.tinv,
+                        nu1=args.nu1, nu2=args.nu2)
     elif args.optim == 'sgdhess':
         return SGDHess(model_params, args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
     elif args.optim == 'adahessian':
@@ -308,6 +317,7 @@ def main():
                               eps=args.eps, run=args.run, 
                               weight_decay=args.weight_decay,
                               damping=args.damping, tcov=args.tcov, tinv=args.tinv,
+                              mu=args.mu, nu1=args.nu1, nu2=args.nu2,
                               rank=args.rank, epoch=args.epoch, batchsize=args.batchsize,
                               update=args.update, lr_scheduler=args.lr_scheduler
                               )
@@ -338,7 +348,7 @@ def main():
     
 
     #if args.optim in ['foof', 'adaact', 'nysact', 'shaper', 'kfac']:
-    if args.optim in ['foof', 'adaact', 'nysact_g', 'nysact_s', 'shaper']:
+    if args.optim in ['foof', 'adaact', 'nysact_g', 'nysact_s', 'shaper', 'lngd']:
         optimizer.model = net
     elif args.optim in ['mac','smac']:
         optimizer._configure(train_loader, net, device)
