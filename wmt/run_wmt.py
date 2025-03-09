@@ -99,7 +99,7 @@ def main():
     set_seed(args.seed)
 
     # 1. Load the dataset (IWSLT 2014 de-en)
-    raw_datasets = load_dataset("iwslt2017", "de-en")
+    raw_datasets = load_dataset("iwslt2017", "iwslt2017-de-en")
 
     # 2. Initialize the tokenizer (using t5-small tokenizer as an example;
     # you may choose to train your own tokenizer from scratch)
