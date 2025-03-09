@@ -248,7 +248,7 @@ def main():
         trust_remote_code=model_args.trust_remote_code,
     )
     # For pretraining from scratch, we initialize without loading pretrained weights.
-    model = AutoModelForSeq2SeqLM(config)
+    model = AutoModelForSeq2SeqLM.from_config(config)
 
     # Load tokenizer (this can be a pretrained tokenizer even if the model is random)
     tokenizer = AutoTokenizer.from_pretrained(
