@@ -148,9 +148,6 @@ class OptimizerArguments:
     tinv: float = field(
         default=5.0, metadata={"help": "tinv"}
     )
-    weight_decay: float = field(
-        default=0.0, metadata={"help": "weight decay"}
-    )
 
 
 
