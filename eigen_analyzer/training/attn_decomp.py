@@ -7,7 +7,6 @@ from common.path import path_join, file_name
 from utils.torch_utils import trainable_modules
 from utils.utils import save_numpy, load_numpy
 from utils.opt_utils import extract_patches
-from functools import partial
 import math
 
 
@@ -43,19 +42,8 @@ class EigenAnalyzer:
         forward_input: List[torch.Tensor],
         _forward_output: torch.Tensor,
     ):
-        actv = forward_input[0].detach().clone()
+
         attn_qkv = ('attn.qkv' in layer_map[module]['name'])
-
-        is_conv = isinstance(module, nn.Conv2d)
-
-        if is_conv:
-            depthwise = module.groups == actv.size(1)
-            actv = extract_patches(actv, module.kernel_size, module.stride,
-                                   module.padding, depthwise)
-        elif actv.ndim > 2:  # linear layers in transformers
-            if attn_qkv:
-                B, N, D = actv.shape
-            actv = actv.reshape(-1, actv.size(-1))
 
         if attn_qkv:
             qkv_out = _forward_output.detach().clone()
@@ -119,7 +107,9 @@ class EigenAnalyzer:
             if check == 'X':
                 continue
 
-            h_fwd_hook = module.register_forward_hook(partial(self._capture_activation, net=net, layer_map=layer_map))
+            h_fwd_hook = module.register_forward_hook(
+                lambda module, inputs, output: self._capture_activation(net, layer_map, module, inputs, output)
+            )
             layer_map[module] = {'name': _module_name, 'hook': h_fwd_hook}
 
         for images, _ in train_loader:
