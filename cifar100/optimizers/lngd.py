@@ -203,12 +203,12 @@ class LNGD(Optimizer):
 
                 A_inv = state['A_inv']
                 G_inv = state['G_inv']
-                v_alr = G_inv @ grad_mat @ A_inv
+                v = G_inv @ grad_mat @ A_inv
 
                 # Adaptive layer-wise learning rate: dot_val / (dot_val ** 2 + mu)
-                #dot_val = torch.dot(v.view(-1), grad_mat.view(-1))
-                #adaptive_lr = dot_val / (dot_val ** 2 + self.mu)
-                #v_alr = adaptive_lr * v
+                dot_val = torch.dot(v.view(-1), grad_mat.view(-1))
+                adaptive_lr = dot_val / (dot_val ** 2 + self.mu)
+                v_alr = adaptive_lr * v
 
                 if layer.bias is not None:
                     v_alr = [v_alr[:, :-1], v_alr[:, -1:]]
