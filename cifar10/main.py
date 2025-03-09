@@ -28,7 +28,7 @@ from optimizers.shaper import Shaper
 from optimizers.shampoo import Shampoo, ShampooHyperParams
 from optimizers.sketchysgd import SketchySGD
 from optimizers.soap import SOAP
-from optimizers.lngd
+from optimizers.lngd import LNGD
 
 def get_parser():
     parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
