@@ -3,7 +3,8 @@ import math
 import os
 import random
 import numpy as np
-from datasets import load_dataset, load_metric
+from datasets import load_dataset
+import evaluate
 
 import torch
 from torch.optim import AdamW, SGD
@@ -155,7 +156,7 @@ def main():
     data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
 
     # 6. Evaluation metric (BLEU) using sacreBLEU
-    metric = load_metric("sacrebleu")
+    metric = evaluate.load("sacrebleu")
 
     def compute_metrics(eval_pred):
         predictions, labels = eval_pred
