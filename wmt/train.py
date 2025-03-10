@@ -398,22 +398,28 @@ def main():
     elif args.model_name_or_path and not args.train_from_scratch:
         config = AutoConfig.from_pretrained(args.model_name_or_path, trust_remote_code=args.trust_remote_code)
     else:
-        config = CONFIG_MAPPING[args.model_type]()
-        logger.warning("No pretrained model specified or train_from_scratch enabled. Instantiating a new config.")
-
-    # Load tokenizer.
-    if args.tokenizer_name:
-        tokenizer = AutoTokenizer.from_pretrained(
-            args.tokenizer_name, use_fast=not args.use_slow_tokenizer, trust_remote_code=args.trust_remote_code
-        )
-    elif args.model_name_or_path and not args.train_from_scratch:
-        tokenizer = AutoTokenizer.from_pretrained(
-            args.model_name_or_path, use_fast=not args.use_slow_tokenizer, trust_remote_code=args.trust_remote_code
-        )
-    else:
-        raise ValueError(
-            "Training from scratch requires a pretrained tokenizer to be specified via --tokenizer_name."
-        )
+        # When training from scratch, if you select the transformer_iwslt_de_en model type,
+        # mimic Fairseq’s configuration.
+        if args.model_type == "transformer_iwslt_de_en":
+            # We use MarianConfig as a stand-in for a standard encoder–decoder transformer.
+            from transformers.models.marian.configuration_marian import MarianConfig
+            config = MarianConfig(
+                encoder_layers=6,
+                decoder_layers=6,
+                d_model=512,
+                encoder_ffn_dim=2048,
+                decoder_ffn_dim=2048,
+                encoder_attention_heads=8,
+                decoder_attention_heads=8,
+                dropout=0.3,
+                # Set the decoder start token id (commonly needed for Marian)
+                decoder_start_token_id=0,
+            )
+            logger.info("Initialized configuration for transformer_iwslt_de_en from scratch")
+        else:
+            # Fallback: try to use the default config mapping for the given model type.
+            config = CONFIG_MAPPING[args.model_type]()
+            logger.warning("No pretrained model specified or train_from_scratch enabled. Instantiating a new config.")
 
     # Load or initialize model.
     if args.train_from_scratch:
