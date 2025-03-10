@@ -172,8 +172,7 @@ def momentum_step(optimizer):
                 param_state['momentum_buffer'] = torch.zeros_like(p)
             d_p = param_state['momentum_buffer'].mul_(momentum).add_(d_p)
 
-            if p.ndim > 1:
-                p.data.mul_(1 - step_size * weight_decay)
+            p.data.mul_(1 - step_size * weight_decay)
             p.data.add_(d_p, alpha=-step_size)
 
 

@@ -218,6 +218,11 @@ def parse_args():
         help="Initial learning rate (after the potential warmup period) to use.",
     )
     parser.add_argument("--weight_decay", type=float, default=0.0, help="Weight decay to use.")
+    parser.add_argument("--momentum", type=float, default=0.9, help="momentum")
+    parser.add_argument("--stat_decay", type=float, default=0.95, help="stat decay")
+    parser.add_argument("--damping", type=float, default=1.0, help="damping")
+    parser.add_argument("--tcov", type=int, default=5, help="tcov")
+    parser.add_argument("--tinv", type=int, default=5, help="tinv")
     parser.add_argument("--num_train_epochs", type=int, default=3, help="Total number of training epochs to perform.")
     parser.add_argument(
         "--max_train_steps",
@@ -296,7 +301,7 @@ def parse_args():
         "--optimizer_type",
         type=str,
         default="adamw",
-        choices=["adamw", "adam", "sgd", "rmsprop"],
+        choices=["adamw", "sgd", "mac"],
         help="Optimizer type to use for training.",
     )
     # New flag to force training from scratch.
@@ -526,12 +531,11 @@ def main():
     # Create optimizer based on selected type.
     if args.optimizer_type == "adamw":
         optimizer = torch.optim.AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
-    elif args.optimizer_type == "adam":
-        optimizer = torch.optim.Adam(optimizer_grouped_parameters, lr=args.learning_rate)
     elif args.optimizer_type == "sgd":
-        optimizer = torch.optim.SGD(optimizer_grouped_parameters, lr=args.learning_rate)
-    elif args.optimizer_type == "rmsprop":
-        optimizer = torch.optim.RMSprop(optimizer_grouped_parameters, lr=args.learning_rate)
+        optimizer = torch.optim.SGD(optimizer_grouped_parameters, lr=args.learning_rate, momentum=args.momentum)
+    elif args.optimizer_type == "mac":
+        optimizer = MAC(optimizer_grouped_parameters, lr=args.learning_rate, momentum=args.momentum,
+                        stat_decay=args.stat_decay, damping=args.damping, Tcov=args.tcov, Tinv=args.tinv)
     else:
         raise ValueError(f"Unknown optimizer type: {args.optimizer_type}")
 
@@ -552,6 +556,9 @@ def main():
     model, optimizer, train_dataloader, eval_dataloader, lr_scheduler = accelerator.prepare(
         model, optimizer, train_dataloader, eval_dataloader, lr_scheduler
     )
+
+    if args.optimizer_type == "mac":
+        optimizer.model = model
 
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
     if overrode_max_train_steps:
