@@ -538,6 +538,7 @@ def main():
     elif args.optimizer_type == "mac":
         optimizer = MAC(optimizer_grouped_parameters, lr=args.learning_rate, momentum=args.momentum,
                         stat_decay=args.stat_decay, damping=args.damping, Tcov=args.tcov, Tinv=args.tinv)
+        optimizer.model = model
     else:
         raise ValueError(f"Unknown optimizer type: {args.optimizer_type}")
 
@@ -559,8 +560,8 @@ def main():
         model, optimizer, train_dataloader, eval_dataloader, lr_scheduler
     )
 
-    if args.optimizer_type == "mac":
-        optimizer.model = model
+    #if args.optimizer_type == "mac":
+    #    optimizer.model = model
 
     num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
     if overrode_max_train_steps:
