@@ -101,7 +101,7 @@ class MAC(Optimizer):
 
         for layer in self.layer_map:
             if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
-                state = self.state[module]
+                state = self.state[layer]
                 grad_mat = reshape_grad(layer)
 
                 if b_updated:
