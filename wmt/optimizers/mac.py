@@ -44,7 +44,10 @@ class MAC(Optimizer):
 
     @model.setter
     def model(self, model):
-        self._model = model
+        if hasattr(model, 'module'):
+            self._model = model.module
+        else:
+            self._model = model
         self.layer_map = build_layer_map(model, fwd_hook_fn=self._capture_activation)
 
     def _capture_activation(
