@@ -127,9 +127,7 @@ class MAC(Optimizer):
 
         avg_actv = actv.mean(dim=0)
 
-        # Use id(module) as the unique layer key
-        layer_key = f"{id(module)}"
-        state = self.state[layer_key]
+        state = self.state[module]
         if 'exp_avg' not in state:
             state['exp_avg'] = torch.zeros_like(avg_actv, device=avg_actv.device)
         state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
@@ -174,9 +172,8 @@ class MAC(Optimizer):
             self.emastep += 1
 
         for layer in self.layer_map:
-            layer_key = f"{id(layer)}"
             if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
-                state = self.state[layer_key]
+                state = self.state[layer]
                 grad_mat = reshape_grad(layer)
 
                 if 'attn.v_proj' in self.layer_map[layer]['name']:

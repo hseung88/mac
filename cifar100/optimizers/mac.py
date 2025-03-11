@@ -114,8 +114,7 @@ class MAC(Optimizer):
 
         avg_actv = actv.mean(dim=0)
 
-        layer_name = self.layer_map[module]['name']
-        state = self.state[layer_name]
+        state = self.state[module]
         if 'exp_avg' not in state:
             state['exp_avg'] = torch.zeros_like(avg_actv, device=avg_actv.device)
         state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
@@ -131,14 +130,14 @@ class MAC(Optimizer):
         group = self.param_groups[0]
         stat_decay = group['stat_decay']
         damping = self.damping
-        if self._step % self.Tinv == 0:
-            b_updated = True
+        if (self._step % self.Tcov) == 0:
             self.emastep += 1
+        if (self._step % self.Tinv) == 0:
+            b_updated = True
 
         for layer in self.layer_map:
-            layer_name = self.layer_map[layer]['name']
             if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
-                state = self.state[layer_name]
+                state = self.state[layer]
                 grad_mat = reshape_grad(layer)
 
                 if layer == self.first_layer:

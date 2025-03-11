@@ -118,8 +118,6 @@ class FOOF(Optimizer):
 
                 grad_mat = reshape_grad(layer)
                 A_inv = self.A_inv[layer].to(grad_mat.dtype)
-                if "attn.qkv" in self.layer_map[layer]['name']:
-                    A_inv = torch.matrix_power(A_inv, 3)
                 v = grad_mat @ A_inv
 
                 if layer.bias is not None:
