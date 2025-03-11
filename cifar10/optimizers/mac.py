@@ -1,4 +1,3 @@
-import math
 from typing import List
 import logging as log
 import torch
@@ -131,10 +130,10 @@ class MAC(Optimizer):
         group = self.param_groups[0]
         stat_decay = group['stat_decay']
         damping = self.damping
-        if self._step % self.Tinv == 0:
-            b_updated = True
+        if (self._step % self.Tcov) == 0:
             self.emastep += 1
-        self._step += 1
+        if (self._step % self.Tinv) == 0:
+            b_updated = True
 
         for layer in self.layer_map:
             if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
@@ -169,5 +168,6 @@ class MAC(Optimizer):
                     layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
 
         momentum_step(self)
+        self._step += 1
 
         return loss
