@@ -20,6 +20,7 @@ from optimizers.mac import MAC
 from optimizers.smac import SMAC
 from optimizers.nysact_mod import NysAct
 from optimizers.shaper import Shaper
+from optimizers.soap import SOAP
 
 _logger = logging.getLogger(__name__)
 
@@ -371,6 +372,8 @@ def create_optimizer_v2(
         opt_args.pop('eps', None)
         optimizer = Shaper(parameters, **opt_args)   
         optimizer.model = model_or_params
+    elif opt_lower == 'soap':
+        optimizer = SOAP(parameters, precondition_frequency=5, **opt_args)
         
     # second order
     elif opt_lower == 'adahessian':
