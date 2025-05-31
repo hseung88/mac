@@ -370,6 +370,7 @@ def create_optimizer_v2(
     elif opt_lower == 'mac':
         opt_args.pop('eps', None)
         optimizer = MAC(parameters, **opt_args)
+        optimizer.model = model_or_params
     elif opt_lower == 'smac':
         opt_args.pop('eps', None)
         optimizer = SMAC(parameters, **opt_args) 
