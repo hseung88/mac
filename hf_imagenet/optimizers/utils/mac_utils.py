@@ -155,14 +155,20 @@ def sgd_step(optimizer):
 
 
 def momentum_step(optimizer):
-    # update parameters
+    # update parameters for MAC layers only (not AdamW-managed ones)
+    adamw_params = set()
+    if hasattr(optimizer, 'adamw_param_groups'):
+        for group in optimizer.adamw_param_groups:
+            for p in group['params']:
+                adamw_params.add(p)
+
     for group in optimizer.param_groups:
         weight_decay = group['weight_decay']
         step_size = group['lr']
         momentum = group['momentum']
 
         for p in group['params']:
-            if p.grad is None:
+            if p.grad is None or p in adamw_params:
                 continue
 
             d_p = p.grad.data
@@ -174,7 +180,6 @@ def momentum_step(optimizer):
 
             p.data.mul_(1 - step_size * weight_decay)
             p.data.add_(d_p, alpha=-step_size)
-
 
 
 def sign_gd_step(optimizer):

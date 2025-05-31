@@ -16,7 +16,7 @@ from optimizers.kfac2 import KFAC
 #from optimizers.kfac import KFAC
 from optimizers.foof import FOOF
 from optimizers.eva import Eva
-from optimizers.mac import MAC
+from optimizers.mac2 import MAC
 from optimizers.smac import SMAC
 from optimizers.nysact_mod import NysAct
 from optimizers.shaper import Shaper

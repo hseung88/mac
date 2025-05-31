@@ -674,8 +674,8 @@ def main():
         worker_seeding=args.worker_seeding,
     )
     
-    if args.opt.lower() in ['mac', 'smac']:
-    #if args.opt.lower() in ['smac']:
+    #if args.opt.lower() in ['mac', 'smac']:
+    if args.opt.lower() in ['smac']:
         optimizer._configure(loader_train, model, device)
     
     eval_workers = args.workers
