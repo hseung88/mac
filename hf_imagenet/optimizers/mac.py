@@ -69,7 +69,6 @@ class MAC(Optimizer):
                     ones = actv.new_ones((actv.shape[0], 1))
                     actv = torch.cat([actv, ones], dim=1)
 
-                # A = torch.einsum('ij,jk->ik', actv.t(), actv) / actv.size(0)  # Optimized matrix multiplication
                 A = torch.matmul(actv.t(), actv) / actv.size(0)
                 if cov_mat is None:
                     cov_mat = A
@@ -120,7 +119,6 @@ class MAC(Optimizer):
         if 'exp_avg' not in state:
             state['exp_avg'] = torch.zeros_like(avg_actv, device=avg_actv.device)
         state['exp_avg'].mul_(stat_decay).add_(avg_actv, alpha=1 - stat_decay)
-        #state['exp_avg'] = avg_actv
 
         if attn_qkv:
             actv_b_avg = actv.view(B, N, actv.size(-1)).mean(dim=0)  # shape: [N, input_dim]
@@ -153,7 +151,6 @@ class MAC(Optimizer):
             if 'exp_avg_v' not in state:
                 state['exp_avg_v'] = torch.zeros_like(v_input, device=v_input.device)
             state['exp_avg_v'].mul_(stat_decay).add_(v_input, alpha=1 - stat_decay)
-            #state['exp_avg_v'] = v_input
 
     @torch.no_grad()
     def step(self, closure=None):
@@ -166,9 +163,10 @@ class MAC(Optimizer):
         group = self.param_groups[0]
         stat_decay = group['stat_decay']
         damping = self.damping
-        if self._step % self.Tinv == 0:
-            b_updated = True
+        if (self._step % self.Tcov) == 0:
             self.emastep += 1
+        if (self._step % self.Tinv) == 0:
+            b_updated = True
 
         for layer in self.layer_map:
             if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
@@ -181,7 +179,6 @@ class MAC(Optimizer):
                     if b_updated:
                         bias_correction = 1.0 - (stat_decay ** self.emastep)
                         exp_avg = state['exp_avg'].div(bias_correction).to(grad_mat.dtype)
-                        #exp_avg = state['exp_avg'].to(grad_mat.dtype)
                         sq_norm = torch.dot(exp_avg, exp_avg)
 
                         if 'A_inv' not in state:
@@ -190,7 +187,6 @@ class MAC(Optimizer):
                             state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device, dtype=exp_avg.dtype))
 
                         state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping + sq_norm))
-                        #state['A_inv'].div_(damping)
 
                     A_inv = state['A_inv'].to(grad_mat.dtype)
 
@@ -206,7 +202,6 @@ class MAC(Optimizer):
                         bias_correction = 1.0 - (stat_decay ** self.emastep)
                         # Update per-head inverse preconditioners
                         exp_avg_v = state['exp_avg_v'].div(bias_correction).to(grad_mat.dtype)  # [num_heads, input_dim]
-                        #exp_avg_v = state['exp_avg_v'].to(grad_mat.dtype)
                         sq_norm_v = torch.dot(exp_avg_v, exp_avg_v)
 
                         if 'V_inv' not in state:

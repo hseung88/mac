@@ -51,14 +51,7 @@ class MAC(Optimizer):
         n_batches = len(train_loader)
         cov_mat = None
 
-        # Handle the case when the model is wrapped in DistributedDataParallel
-        # if hasattr(net, 'module'):
-        #    net = net.module
-
         _, first_layer = next(trainable_modules(net))
-
-        # Directly capture the first layer (patch embedding) of ViTs
-        # first_layer = net.patch_embed.proj
 
         with torch.no_grad():
             for images, _ in train_loader:
@@ -70,7 +63,6 @@ class MAC(Optimizer):
                     ones = actv.new_ones((actv.shape[0], 1))
                     actv = torch.cat([actv, ones], dim=1)
 
-                # A = torch.einsum('ij,jk->ik', actv.t(), actv) / actv.size(0)  # Optimized matrix multiplication
                 A = torch.matmul(actv.t(), actv) / actv.size(0)
                 if cov_mat is None:
                     cov_mat = A
@@ -154,7 +146,6 @@ class MAC(Optimizer):
                             state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device))
 
                         state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping+ sq_norm))
-                        #state['A_inv'].div_(damping)
 
                     A_inv = state['A_inv']
 

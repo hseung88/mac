@@ -11,15 +11,8 @@ import torch.optim as optim
 
 from timm.models import group_parameters
 
-from optimizers.adaact_v2 import AdaAct
-from optimizers.kfac2 import KFAC
-#from optimizers.kfac import KFAC
 from optimizers.foof import FOOF
-from optimizers.eva import Eva
-from optimizers.mac2 import MAC
-from optimizers.smac import SMAC
-from optimizers.nysact_mod import NysAct
-from optimizers.shaper import Shaper
+from optimizers.mac import MAC
 
 _logger = logging.getLogger(__name__)
 
@@ -172,8 +165,6 @@ def optimizer_kwargs(cfg):
         kwargs['Tinv'] = cfg.tinv
     if getattr(cfg, 'stat_decay', None) is not None:
         kwargs['stat_decay'] = cfg.stat_decay
-    #if getattr(cfg, 'rank_size', None) is not None:
-    #    kwargs['rank_size'] = cfg.rank_size
     if getattr(cfg, 'opt_args', None) is not None:
         kwargs.update(cfg.opt_args)
     if getattr(cfg, 'opt_foreach', None) is not None:
@@ -351,15 +342,9 @@ def create_optimizer_v2(
     elif opt_lower == 'lion':
         opt_args.pop('eps', None)
         optimizer = Lion(parameters, **opt_args)
-    elif opt_lower == 'adaact':
-        optimizer = AdaAct(parameters, **opt_args)
-        optimizer.model = model_or_params
     elif opt_lower == 'kfac':
         opt_args.pop('eps', None)
         optimizer = optim.SGD(parameters, momentum=momentum, nesterov=True, **opt_args)
-    #elif opt_lower == 'kfac':
-    #    optimizer = KFAC(parameters, momentum=0.9, stat_decay=0.95, damping=10.0, Tcov=5, Tinv=5, **opt_args)   
-    #    optimizer.model = model_or_params
     elif opt_lower == 'foof':
         opt_args.pop('eps', None)
         optimizer = FOOF(parameters, **opt_args)
@@ -370,18 +355,6 @@ def create_optimizer_v2(
     elif opt_lower == 'mac':
         opt_args.pop('eps', None)
         optimizer = MAC(parameters, **opt_args)
-        optimizer.model = model_or_params
-    elif opt_lower == 'smac':
-        opt_args.pop('eps', None)
-        optimizer = SMAC(parameters, **opt_args) 
-    elif opt_lower == 'nysact':
-        opt_args.pop('eps', None)
-        optimizer = NysAct(parameters, **opt_args)
-        optimizer.model = model_or_params
-    elif opt_lower == 'shaper':
-        opt_args.pop('eps', None)
-        optimizer = Shaper(parameters, **opt_args)   
-        optimizer.model = model_or_params
         
     # second order
     elif opt_lower == 'adahessian':

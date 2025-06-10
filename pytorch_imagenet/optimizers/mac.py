@@ -1,4 +1,3 @@
-import math
 from typing import List
 import logging as log
 import torch
@@ -52,11 +51,11 @@ class MAC(Optimizer):
         n_batches = len(train_loader)
         cov_mat = None
 
+        _, first_layer = next(trainable_modules(net))
+
         # Handle the case when the model is wrapped in DistributedDataParallel
         # if hasattr(net, 'module'):
         #    net = net.module
-
-        _, first_layer = next(trainable_modules(net))
 
         # Directly capture the first layer (patch embedding) of ViTs
         # first_layer = net.patch_embed.proj
@@ -71,7 +70,6 @@ class MAC(Optimizer):
                     ones = actv.new_ones((actv.shape[0], 1))
                     actv = torch.cat([actv, ones], dim=1)
 
-                # A = torch.einsum('ij,jk->ik', actv.t(), actv) / actv.size(0)  # Optimized matrix multiplication
                 A = torch.matmul(actv.t(), actv) / actv.size(0)
                 if cov_mat is None:
                     cov_mat = A
@@ -131,10 +129,10 @@ class MAC(Optimizer):
         group = self.param_groups[0]
         stat_decay = group['stat_decay']
         damping = self.damping
-        if self._step % self.Tinv == 0:
-            b_updated = True
+        if (self._step % self.Tcov) == 0:
             self.emastep += 1
-        self._step += 1
+        if (self._step % self.Tinv) == 0:
+            b_updated = True
 
         for layer in self.layer_map:
             if isinstance(layer, (nn.Linear, nn.Conv2d)) and layer.weight.grad is not None:
@@ -155,7 +153,6 @@ class MAC(Optimizer):
                             state['A_inv'].copy_(torch.eye(exp_avg.size(0), device=exp_avg.device))
 
                         state['A_inv'].sub_(torch.outer(exp_avg, exp_avg).div_(damping+ sq_norm))
-                        #state['A_inv'].div_(damping)
 
                     A_inv = state['A_inv']
 
@@ -169,5 +166,6 @@ class MAC(Optimizer):
                     layer.weight.grad.data.copy_(v.view_as(layer.weight.grad))
 
         momentum_step(self)
+        self._step += 1
 
         return loss

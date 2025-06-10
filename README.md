@@ -1,45 +1,73 @@
-**Edit a file, create a new file, and clone from Bitbucket in under 2 minutes**
+# MAC: An Efficient Gradient Preconditioning using Mean Activation Approximated Curvature
 
-When you're done, you can delete the content in this README and update the file with details for others getting started with your repository.
+This repository contains the implementation of **MAC**, a lightweight second-order optimizer for deep learning 
+that uses mean activation statistics to approximate curvature efficiently. MAC offers a fast and scalable alternative 
+to classical second-order methods like KFAC by leveraging a rank-1 curvature approximation and avoiding unstable inversions.
 
-*We recommend that you open this README in another tab as you perform the tasks below. You can [watch our video](https://youtu.be/0ocf7u76WSo) for a full demo of all the steps in this tutorial. Open the video in a new tab to avoid leaving Bitbucket.*
+## Overview
 
----
+Second-order optimization methods can enhance both convergence speed and generalization performance, but they often 
+incur substantial computational and memory costs. **MAC (Mean Activation Curvature)** is a curvature-aware optimizer 
+that addresses these challenges through lightweight approximations. It is designed to:
+- Precondition gradients using a rank-1 curvature approximation based on batch-averaged activations.
+- Improve training stability via decoupled damping.
+- Achieve competitive or superior accuracy compared to KFAC, FOOF, and AdamW on CNNs and Vision Transformers, 
+while reducing computational overhead.
 
-## Edit a file
+## Key Features
 
-You’ll start by editing this README file to learn how to edit a file in Bitbucket.
+- **Structural Insights into Curvature Factors**: We conduct an eigenanalysis of the Kronecker factors used in KFAC and 
+uncover key structural properties that inform the design of our optimizer.
+- **Efficient Optimization with Reduced Training Time**: Leveraging these structural insights, MAC introduces a novel 
+preconditioning strategy that reduces end-to-end training time by up to 55.4% compared to KFAC, while maintaining 
+memory usage close to that of SGD.
+- **First to Apply Kronecker Factorization to Self-Attention**: MAC is the first optimizer to apply Kronecker 
+factorization to the Fisher Information Matrix of self-attention layers. It explicitly incorporates attention scores 
+into the preconditioner, achieving up to 3.6% higher top-1 accuracy on ImageNet compared to KFAC.
 
-1. Click **Source** on the left side.
-2. Click the README.md link from the list of files.
-3. Click the **Edit** button.
-4. Delete the following text: *Delete this line to make a change to the README from Bitbucket.*
-5. After making your change, click **Commit** and then **Commit** again in the dialog. The commit page will open and you’ll see the change you just made.
-6. Go back to the **Source** page.
+## Installation
 
----
+1. Clone the repository:
+```bash
+git clone https://github.com/hseung88/mac.git
+cd mac
+```
 
-## Create a file
+2. Create a virtual environment:
+```bash
+conda env create -n mac -f environments.yml
+conda activate mac
+```
 
-Next, you’ll add a new file to this repository.
+## Usage
 
-1. Click the **New file** button at the top of the **Source** page.
-2. Give the file a filename of **contributors.txt**.
-3. Enter your name in the empty file space.
-4. Click **Commit** and then **Commit** again in the dialog.
-5. Go back to the **Source** page.
+To train a model using MAC on CIFAR:
+```bash
+python main.py --model resnet110 --optim mac \
+--lr 0.1 --momentum 0.9 --stat_decay 0.95 \
+--damping 1.0 --tcov 5 --tinv 50  \
+--weight_decay 0.0005 --epoch 200 --run 0;
+```
 
-Before you move on, go ahead and explore the repository. You've already seen the **Source** page, but check out the **Commits**, **Branches**, and **Settings** pages.
-
----
-
-## Clone a repository
-
-Use these steps to clone from SourceTree, our client for using the repository command-line free. Cloning allows you to work on your files locally. If you don't yet have SourceTree, [download and install first](https://www.sourcetreeapp.com/). If you prefer to clone from the command line, see [Clone a repository](https://confluence.atlassian.com/x/4whODQ).
-
-1. You’ll see the clone button under the **Source** heading. Click that button.
-2. Now click **Check out in SourceTree**. You may need to create a SourceTree account or log in.
-3. When you see the **Clone New** dialog in SourceTree, update the destination path and name if you’d like to and then click **Clone**.
-4. Open the directory you just created to see your repository’s files.
-
-Now that you're more familiar with your Bitbucket repository, go ahead and add a new file locally. You can [push your change back to Bitbucket with SourceTree](https://confluence.atlassian.com/x/iqyBMg), or you can [add, commit,](https://confluence.atlassian.com/x/8QhODQ) and [push from the command line](https://confluence.atlassian.com/x/NQ0zDQ).
+For training on ImageNet:
+1. **ResNets:** Set `--model` to either `resnet50` or `resnet101`, depending on your choice.
+```bash
+cd ./pytorch_imagenet
+torchrun --nproc_per_node=4 ./train.py --data-path /data/imagenet --model $MODEL \
+--batch-size 256 --print-freq 1000 --opt mac --lr 0.5 --damping 1.0 --weight-decay 0.00002 \
+--lr-scheduler cosineannealinglr --lr-warmup-epochs 5 --lr-warmup-method linear \
+--auto-augment ta_wide --epochs 100 --model-ema --random-erase 0.1 \
+--norm-weight-decay 0.0 --label-smoothing 0.1 --mixup-alpha 0.2 --cutmix-alpha 1.0 \
+--train-crop-size 176 --val-resize-size 232 --ra-sampler --ra-reps 4 \
+--output-dir ./outputs
+```
+2. **DeiT-Small / Swin-Tiny:** Set `--model` to either `deit_small_patch16_224` or `swin_tiny_patch4_window7_224`, depending on your choice.
+```bash
+cd ./hf_imagenet
+torchrun --nproc_per_node=4 ./train.py --model $MODEL --sched cosine \
+--epochs 100 --opt mac --lr 0.5 --damping 3.0 --tcov 5 --tinv 5 --stat_decay 0.99 \
+--weight-decay 0.0001 --workers 16 --warmup-epochs 5 --warmup-lr 0.05 --min-lr 0.0 \
+--batch-size 256 --aug-repeats 3 --aa rand-m9-mstd0.5-inc1 --smoothing 0.1 \
+--remode pixel --reprob 0.25 --drop 0.0 --drop-path 0.0 --mixup 0.8 --cutmix 1.0 \
+--data-dir /scratch/hs70639/data/imagenet --pin-mem True --amp --log-interval 1000;
+```

@@ -674,8 +674,7 @@ def main():
         worker_seeding=args.worker_seeding,
     )
     
-    #if args.opt.lower() in ['mac', 'smac']:
-    if args.opt.lower() in ['smac']:
+    if args.opt.lower() in ['mac']:
         optimizer._configure(loader_train, model, device)
     
     eval_workers = args.workers
@@ -782,9 +781,9 @@ def main():
 
     preconditioner = None
     if args.opt.lower() in ['eva']:
-        preconditioner = Eva(model, lr=args.lr, damping=0.03, fac_update_freq=5, kfac_update_freq=5)
+        preconditioner = Eva(model, lr=args.lr, damping=0.3, fac_update_freq=5, kfac_update_freq=5)
     elif args.opt.lower() in ['kfac']:
-        preconditioner = KFAC(model, lr=args.lr, damping=0.03, fac_update_freq=5, kfac_update_freq=5)
+        preconditioner = KFAC(model, lr=args.lr, damping=0.3, fac_update_freq=5, kfac_update_freq=5)
     
     try:
         _start_time_ = time.time()
@@ -960,7 +959,6 @@ def train_one_epoch(
                             mode=args.clip_mode,
                         )
                     if args.opt.lower() in ['eva', 'kfac'] and preconditioner is not None:
-                    #if args.opt.lower() in ['eva'] and preconditioner is not None:
                         preconditioner.step()
                     optimizer.step()
 
