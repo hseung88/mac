@@ -28,6 +28,8 @@ memory usage close to that of SGD.
 factorization to the Fisher Information Matrix of self-attention layers. It explicitly incorporates attention scores 
 into the preconditioner, achieving up to 3.6% higher top-1 accuracy on ImageNet compared to KFAC.
 
+---
+
 ## Installation
 
 1. Clone the repository:
@@ -73,4 +75,16 @@ torchrun --nproc_per_node=4 ./train.py --model $MODEL --sched cosine \
 --batch-size 256 --aug-repeats 3 --aa rand-m9-mstd0.5-inc1 --smoothing 0.1 \
 --remode pixel --reprob 0.25 --drop 0.0 --drop-path 0.0 --mixup 0.8 --cutmix 1.0 \
 --data-dir /scratch/hs70639/data/imagenet --pin-mem True --amp --log-interval 1000;
+```
+
+---
+
+## Citation
+```bash
+@inproceedings{seung2025mac,
+  title={MAC: An Efficient Gradient Preconditioning using Mean Activation Approximated Curvature},
+  author={Seung, Hyunseok and Lee, Jaewoo and Ko, Hyunsuk},
+  booktitle={IEEE International Conference on Data Mining},
+  year={2025}
+}
 ```
