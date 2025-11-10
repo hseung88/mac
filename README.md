@@ -4,6 +4,9 @@ This repository contains the implementation of **MAC**, a lightweight second-ord
 that uses mean activation statistics to approximate curvature efficiently. MAC offers a fast and scalable alternative 
 to classical second-order methods like KFAC by leveraging a rank-1 curvature approximation and avoiding unstable inversions.
 
+> Accepted at IEEE International Conference on Data Mining (ICDM-2025), Washington DC, USA, November 2025.
+---
+
 ## Overview
 
 Second-order optimization methods can enhance both convergence speed and generalization performance, but they often 
