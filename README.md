@@ -28,6 +28,102 @@ memory usage close to that of SGD.
 factorization to the Fisher Information Matrix of self-attention layers. It explicitly incorporates attention scores 
 into the preconditioner, achieving up to 3.6% higher top-1 accuracy on ImageNet compared to KFAC.
 
+### Benchmark Results
+<p align="center">
+  <img src="figures/experiment_cifar_100.png" width="98%"/>
+</p>
+
+<p align="center">
+  Figure 1: Comparison of train loss and test accuracy over wall-clock time on CIFAR-100 dataset.
+</p>
+
+<div style="transform: scale(0.93); transform-origin: top left; width: max-content;">
+<table>
+  <thead>
+    <tr>
+      <th rowspan="2">Model</th>
+      <th colspan="2">ResNet-50</th>
+      <th colspan="2">ResNet-101</th>
+      <th colspan="2">DeiT-Small</th>
+      <th colspan="2">Swin-Tiny</th>
+      <th rowspan="2">Avg.</th>
+      <th rowspan="2">Rank</th>
+    </tr>
+    <tr>
+      <th>100</th>
+      <th>200</th>
+      <th>100</th>
+      <th>200</th>
+      <th>100</th>
+      <th>200</th>
+      <th>100</th>
+      <th>200</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <tr>
+      <td><strong>MAC</strong></td>
+      <td>78.0</td><td>79.7</td>
+      <td>79.8</td><td>81.2</td>
+      <td>73.5</td><td>77.4</td>
+      <td>77.7</td><td>80.1</td>
+      <td><strong>78.4</strong></td>
+      <td><strong>1</strong></td>
+    </tr>
+    <tr>
+      <td>SGD</td>
+      <td>78.1</td><td>79.6</td>
+      <td>79.7</td><td>81.3</td>
+      <td>69.1</td><td>75.3</td>
+      <td>76.0</td><td>78.9</td>
+      <td>77.3</td>
+      <td>3</td>
+    </tr>
+    <tr>
+      <td>AdamW</td>
+      <td>76.8</td><td>79.2</td>
+      <td>77.9</td><td>80.6</td>
+      <td>73.7</td><td>77.9</td>
+      <td>77.4</td><td>80.1</td>
+      <td>78.0</td>
+      <td>2</td>
+    </tr>
+    <tr>
+      <td>KFAC</td>
+      <td>78.2</td><td>79.3</td>
+      <td>79.6</td><td>81.1</td>
+      <td>69.9</td><td>✗</td>
+      <td>✗</td><td>✗</td>
+      <td>48.5</td>
+      <td>6</td>
+    </tr>
+    <tr>
+      <td>FOOF</td>
+      <td>78.4</td><td>79.7</td>
+      <td>80.0</td><td>81.0</td>
+      <td>63.9</td><td>67.9</td>
+      <td>73.7</td><td>72.6</td>
+      <td>74.7</td>
+      <td>4</td>
+    </tr>
+    <tr>
+      <td>Eva</td>
+      <td>77.7</td><td>79.4</td>
+      <td>79.6</td><td>81.1</td>
+      <td>69.7</td><td>76.6</td>
+      <td>✗</td><td>✗</td>
+      <td>58.0</td>
+      <td>5</td>
+    </tr>
+  </tbody>
+</table>
+<p><em>✗ indicates a training failure.</em></p>
+</div>
+<p align="center">
+  Table 1: Top-1 accuracy (\%) of ResNets and ViTs on ImageNet-1k.
+</p>
+
 ---
 
 ## Installation
