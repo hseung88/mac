@@ -37,7 +37,7 @@ into the preconditioner, achieving up to 3.6% higher top-1 accuracy on ImageNet 
   Figure 1: Comparison of train loss and test accuracy over wall-clock time on CIFAR-100 dataset.
 </p>
 
-<div style="transform: scale(0.93); transform-origin: top left; width: max-content;">
+<div style="transform: scale(1.0); transform-origin: top left; width: max-content;">
 <table>
   <thead>
     <tr>
