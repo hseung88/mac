@@ -13,6 +13,7 @@ from timm.models import group_parameters
 
 from optimizers.foof import FOOF
 from optimizers.mac import MAC
+from optimizers.smac import SMAC
 
 _logger = logging.getLogger(__name__)
 
@@ -355,6 +356,9 @@ def create_optimizer_v2(
     elif opt_lower == 'mac':
         opt_args.pop('eps', None)
         optimizer = MAC(parameters, **opt_args)
+    elif opt_lower == 'smac':
+        opt_args.pop('eps', None)
+        optimizer = SMAC(parameters, **opt_args)
         
     # second order
     elif opt_lower == 'adahessian':
